@@ -29,8 +29,6 @@ public class ImageController {
     public MessageResponse uploadImage(
             @RequestPart("file") MultipartFile file
     ) {
-        System.out.println("hello");
-        System.out.println("hi");
         ImageUploadRequest imageUploadRequest = ImageUploadRequest.builder().file(file).build();
         String imageUrl = imageService.uploadImage(imageUploadRequest);
         return MessageResponse.builder().message("Image Upload successful: " + imageUrl).build();

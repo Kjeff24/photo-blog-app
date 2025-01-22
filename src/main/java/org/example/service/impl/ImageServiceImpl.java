@@ -39,8 +39,8 @@ public class ImageServiceImpl implements ImageService {
     private String stagingBucket;
     @Value("${aws.s3.bucket.primary}")
     private String primaryBucket;
-    @Value("${aws.dynamodb.table}")
-    private String dynamodbTable;
+//    @Value("${aws.dynamodb.table}")
+//    private String dynamodbTable;
     @Value("${aws.region}")
     private String awsRegion;
 

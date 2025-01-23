@@ -38,6 +38,7 @@ Resources:
 
   StagingBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub '${AWS::StackName}-staging-bucket'
       PublicAccessBlockConfiguration:
@@ -48,6 +49,7 @@ Resources:
 
   PrimaryBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub '${AWS::StackName}-primary-bucket'
       PublicAccessBlockConfiguration:

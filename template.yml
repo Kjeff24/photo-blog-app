@@ -20,6 +20,7 @@ Resources:
             Action:
               - s3:PutObject
               - s3:DeleteObject
+              - s3:GetObject
             Resource:
               - !GetAtt PrimaryBucket.Arn
               - !GetAtt StagingBucket.Arn
@@ -39,15 +40,96 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${AWS::StackName}-staging-bucket'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
 
   PrimaryBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${AWS::StackName}-primary-bucket'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # BUCKET POLICIES
+
+  # Staging bucket policy
+  StagingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StagingBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:GetObject
+            Resource: !Sub 'arn:aws:s3:::${StagingBucket}/*'
+
+            # Primary bucket policy
+  PrimaryBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PrimaryBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:GetObject
+            Resource: !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
+
+
+  # IAM ROLES
+
+  # PHOTO BLOG APP IAM ROLE
+#  PhotoBlogAppFunctionRole:
+#    Type: AWS::IAM::Role
+#    Properties:
+#      AssumeRolePolicyDocument:
+#        Version: "2012-10-17"
+#        Statement:
+#          - Effect: Allow
+#            Principal:
+#              Service:
+#                - lambda.amazonaws.com
+#            Action:
+#              - sts:AssumeRole
+#      Policies:
+#        - PolicyName: PhotoBlogAppFunctionPolicy
+#          PolicyDocument:
+#            Version: "2012-10-17"
+#            Statement:
+#              - Effect: Allow
+#                Action:
+#                  - logs:CreateLogGroup
+#                  - logs:CreateLogStream
+#                  - logs:PutLogEvents
+#                Resource: "arn:aws:logs:*:*:*"
+#              - Effect: Allow
+#                Action:
+#                  - s3:PutObject
+#                  - s3:DeleteObject
+#                  - s3:GetObject
+#                Resource:
+#                  - !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
+#                  - !Sub 'arn:aws:s3:::${StagingBucket}/*'
+
 
 Outputs:
   PhotoBlogAppApi:
     Description: URL for application
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/ping'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
     Export:
       Name: PhotoBlogAppApi

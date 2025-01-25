@@ -5,6 +5,16 @@ Globals:
   Api:
     EndpointConfiguration: REGIONAL
 
+Parameters:
+  FrontendDevHost:
+    Type: String
+    Default: "http://localhost:4200"
+    Description: The localhost of my frontend
+  FrontendProdHost:
+    Type: String
+    Default: "http://localhost:4200"
+    Description: The localhost of my frontend
+
 Resources:
   PhotoBlogAppFunction:
     Type: AWS::Serverless::Function
@@ -76,7 +86,7 @@ Resources:
               - s3:GetObject
             Resource: !Sub 'arn:aws:s3:::${StagingBucket}/*'
 
-            # Primary bucket policy
+  # Primary bucket policy
   PrimaryBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -92,6 +102,78 @@ Resources:
               - s3:GetObject
             Resource: !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
 
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-TaskManagementUserPool
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+        - Name: role
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 7
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${AWS::StackName}UserPoolClient
+      GenerateSecret: true
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - aws.cognito.signin.user.admin
+      SupportedIdentityProviders:
+        - COGNITO
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      CallbackURLs:
+        - !Ref FrontendDevHost
+        - !Ref FrontendProdHost
+      UserPoolId: !Ref UserPool
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 6
+      IdTokenValidity: 6
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+
+  # Cognito User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub ${AWS::StackName}-domain
+      UserPoolId: !Ref UserPool
 
   # IAM ROLES
 
@@ -135,3 +217,19 @@ Outputs:
     Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
     Export:
       Name: PhotoBlogAppApi
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+
+  UserPoolDomainURL:
+    Description: Cognito User Pool Domain Hosted UI URL
+    Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
+
+  CognitoLoginURL:
+    Description: Cognito User Pool Application Client Hosted Login UI URL
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&redirect_uri=${FrontendProdHost}'

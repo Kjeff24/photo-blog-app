@@ -30,12 +30,6 @@ public class GlobalExceptionHandler {
         return MessageResponse.builder().message(e.getMessage()).build();
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public MessageResponse illegalArgumentExceptionHandler(IllegalArgumentException e) {
-        return MessageResponse.builder().message(e.getMessage()).build();
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<List<String>> validationErrorsHandler(MethodArgumentNotValidException ex) {
         List<String> errors = ex.getBindingResult().getFieldErrors()

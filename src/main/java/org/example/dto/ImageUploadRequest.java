@@ -1,21 +1,16 @@
 package org.example.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import org.example.util.validator.ImageSize;
 
 public record ImageUploadRequest(
         @Pattern(
                 regexp = "^[A-Za-z0-9+/]+={0,2}$",
-                message = "Invalid Base64 string."
-        )
-        String image,
-        @Pattern(
-                regexp = "^(image/(jpeg|png|gif|bmp|tiff|webp))$",
-                message = "Invalid MIME type. Allowed types: image/jpeg, image/png, image/gif, image/bmp, image/tiff, image/webp."
-        )
-//        @Size(max = 10000, message = "Image size exceeds the allowed limit.")
-        String imageType,
-        String firstName,
-        String lastName,
-        String user) {
+                message = "Invalid Base64 string.")
+        @NotBlank(message = "Base64 string is required")
+        @ImageSize(message = "Image limit size is 5MB")
+        String imageBase64,
+        String fullName,
+        String userId) {
 }

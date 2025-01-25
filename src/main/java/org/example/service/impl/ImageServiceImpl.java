@@ -46,8 +46,8 @@ public class ImageServiceImpl implements ImageService {
             String mimeType = detectMimeType(imageBytes);
             validateImageType(mimeType);
 
-            String fileExtension = getImageFormat(mimeType);
-            String objectKey = UUID.randomUUID() + "." + fileExtension;
+            String imageFormat = getImageFormat(mimeType);
+            String objectKey = UUID.randomUUID() + "." + imageFormat;
 
             s3Client.putObject(
                     PutObjectRequest.builder()
@@ -58,7 +58,7 @@ public class ImageServiceImpl implements ImageService {
                     RequestBody.fromBytes(imageBytes)
             );
 
-            return processImage(objectKey, imageBytes, fileExtension, request.user());
+            return processImage(objectKey, imageBytes, imageFormat, request.user());
         } catch (IllegalArgumentException e) {
             throw new InternalServerErrorException("Image upload failed: " + e.getMessage());
         }

@@ -9,7 +9,8 @@ repositories {
 
 dependencies {
   implementation (
-          'org.springframework.boot:spring-boot-starter-web:3.4.0',
+          'org.springframework.boot:spring-boot-starter-web:3.4.2',
+          'org.springframework.boot:spring-boot-starter-validation:3.4.2',
           'com.amazonaws.serverless:aws-serverless-java-container-springboot3:[2.0-SNAPSHOT,)',
           'software.amazon.awssdk:s3:2.30.2',
           'software.amazon.awssdk:dynamodb:2.30.2'

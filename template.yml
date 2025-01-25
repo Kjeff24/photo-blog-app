@@ -16,6 +16,7 @@ Parameters:
     Description: The localhost of my frontend
 
 Resources:
+  ## Lambda function for API-GATEWAY
   PhotoBlogAppFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -34,6 +35,12 @@ Resources:
             Resource:
               - !GetAtt PrimaryBucket.Arn
               - !GetAtt StagingBucket.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource:
+                - !GetAtt ImageProcessingLambda.Arn
       Timeout: 30
       Events:
         ProxyResource:
@@ -45,10 +52,55 @@ Resources:
         Variables:
           S3_BUCKET_PRIMARY: !Ref PrimaryBucket
           S3_BUCKET_STAGING: !Ref StagingBucket
+          DYNAMODB_TABLE: !Ref Table
+          IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
+
+    # Lambda Function for SQS Notification Processing
+  ImageProcessingLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-ImageProcessingLambda
+      Handler: org.example.ImageProcessingLambda::handleRequest
+      Runtime: java21
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 30
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource:
+              - !GetAtt PrimaryBucket.Arn
+              - !GetAtt StagingBucket.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource:
+                - !GetAtt StepFunctionStateMachine.Arn
+#                - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFunctionStateMachine
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:GetItem
+            Resource: !GetAtt Table.Arn
+      Environment:
+        Variables:
+          S3_BUCKET_PRIMARY: !Ref PrimaryBucket
+#          S3_BUCKET_STAGING: !Ref StagingBucket
+          DYNAMODB_TABLE: !Ref Table
+          STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
+#          STEP_FUNCTION_ARN: !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFunctionStateMachine
 
   StagingBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+#    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub '${AWS::StackName}-staging-bucket'
       PublicAccessBlockConfiguration:
@@ -59,7 +111,7 @@ Resources:
 
   PrimaryBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+#    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub '${AWS::StackName}-primary-bucket'
       PublicAccessBlockConfiguration:
@@ -67,6 +119,159 @@ Resources:
         BlockPublicPolicy: false
         IgnorePublicAcls: false
         RestrictPublicBuckets: false
+
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-UserPool
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+        - Name: role
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 7
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${AWS::StackName}-UserPoolClient
+      GenerateSecret: true
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - aws.cognito.signin.user.admin
+      SupportedIdentityProviders:
+        - COGNITO
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      CallbackURLs:
+        - !Ref FrontendDevHost
+        - !Ref FrontendProdHost
+      UserPoolId: !Ref UserPool
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 6
+      IdTokenValidity: 6
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+  # Cognito User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub ${AWS::StackName}-domain
+      UserPoolId: !Ref UserPool
+
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-Table
+      AttributeDefinitions:
+        - AttributeName: photoId
+          AttributeType: S
+        - AttributeName: owner
+          AttributeType: S
+      KeySchema:
+        - AttributeName: photoId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: OwnerIndex
+          KeySchema:
+            - AttributeName: owner
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+
+  StepFunctionStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub ${AWS::StackName}-StepFunctionStateMachine
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionString: !Sub |
+        {
+          "StartAt": "DetermineWorkflow",
+          "States": {
+            "DetermineWorkflow": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.workflowType",
+                  "StringEquals": "image-processing-retry",
+                  "Next": "ImageProcessing"
+                }
+              ],
+              "Default": "FailState"
+            },
+            "ImageProcessing": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ImageProcessingLambda",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.TaskFailed"
+                  ],
+                  "IntervalSeconds": 300,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "NotifyFailure"
+                }
+              ],
+              "Next": "SuccessState"
+            },
+            "NotifyFailure": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-NotifyFailureLambda",
+              "Next": "FailState"
+            },
+            "SuccessState": {
+              "Type": "Succeed"
+            },
+            "FailState": {
+              "Type": "Fail",
+              "Error": "ProcessingFailed",
+              "Cause": "Image processing failed after retries."
+            }
+          }
+        }
+  
+  
+  
 
   # BUCKET POLICIES
 
@@ -102,113 +307,28 @@ Resources:
               - s3:GetObject
             Resource: !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
 
-  # Cognito User Pool
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: !Sub ${AWS::StackName}-TaskManagementUserPool
-      AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true
-      AutoVerifiedAttributes:
-        - email
-      UsernameAttributes:
-        - email
-      Schema:
-        - Name: name
-          AttributeDataType: String
-          Mutable: true
-          Required: true
-        - Name: email
-          AttributeDataType: String
-          Mutable: false
-          Required: true
-        - Name: role
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireUppercase: true
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: true
-          TemporaryPasswordValidityDays: 7
-
-  # Cognito User Pool Client
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName: !Sub ${AWS::StackName}UserPoolClient
-      GenerateSecret: true
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthFlows:
-        - code
-        - implicit
-      AllowedOAuthScopes:
-        - email
-        - openid
-        - aws.cognito.signin.user.admin
-      SupportedIdentityProviders:
-        - COGNITO
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_USER_SRP_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-      CallbackURLs:
-        - !Ref FrontendDevHost
-        - !Ref FrontendProdHost
-      UserPoolId: !Ref UserPool
-      RefreshTokenValidity: 30
-      AccessTokenValidity: 6
-      IdTokenValidity: 6
-      TokenValidityUnits:
-        AccessToken: hours
-        IdToken: hours
-        RefreshToken: days
-
-
-  # Cognito User Pool Domain
-  UserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: !Sub ${AWS::StackName}-domain
-      UserPoolId: !Ref UserPool
-
   # IAM ROLES
-
-  # PHOTO BLOG APP IAM ROLE
-#  PhotoBlogAppFunctionRole:
-#    Type: AWS::IAM::Role
-#    Properties:
-#      AssumeRolePolicyDocument:
-#        Version: "2012-10-17"
-#        Statement:
-#          - Effect: Allow
-#            Principal:
-#              Service:
-#                - lambda.amazonaws.com
-#            Action:
-#              - sts:AssumeRole
-#      Policies:
-#        - PolicyName: PhotoBlogAppFunctionPolicy
-#          PolicyDocument:
-#            Version: "2012-10-17"
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - logs:CreateLogGroup
-#                  - logs:CreateLogStream
-#                  - logs:PutLogEvents
-#                Resource: "arn:aws:logs:*:*:*"
-#              - Effect: Allow
-#                Action:
-#                  - s3:PutObject
-#                  - s3:DeleteObject
-#                  - s3:GetObject
-#                Resource:
-#                  - !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
-#                  - !Sub 'arn:aws:s3:::${StagingBucket}/*'
+  # Step Functions Role
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: StepFunctionsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ImageProcessingLambda
 
 
 Outputs:
@@ -233,3 +353,11 @@ Outputs:
   CognitoLoginURL:
     Description: Cognito User Pool Application Client Hosted Login UI URL
     Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&redirect_uri=${FrontendProdHost}'
+
+  PrimaryS3Bucket:
+    Description: Primary s3 bucket
+    Value: !Ref PrimaryBucket
+
+  StagingS3Bucket:
+    Description: Staging s3 bucket
+    Value: !Ref StagingBucket

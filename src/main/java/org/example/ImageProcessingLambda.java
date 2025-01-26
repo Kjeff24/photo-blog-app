@@ -23,9 +23,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 public class ImageProcessingLambda implements RequestHandler<Map<String, String>, Map<String, Object>> {
 
@@ -48,57 +48,46 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
     }
 
     public Map<String, Object> handleRequest(Map<String, String> event, Context context) {
-        Map<String, Object> response = Map.of();
         String bucketName = event.get("bucketName");
         String objectKey = event.get("objectKey");
         String userId = event.get("userId");
         String fullName = event.get("fullName");
 
-        context.getLogger().log("BucketName : " + bucketName);
-        context.getLogger().log("ObjectKey : " + objectKey);
-        context.getLogger().log("UserId : " + userId);
-        context.getLogger().log("Full name : " + fullName);
+        Map<String, Object> response = new HashMap<>();
 
         try {
+            ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
+            String mimeType = fetchMimeType(bucketName, objectKey);
 
-            ResponseInputStream<GetObjectResponse> inputStream = s3Client.getObject(GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(objectKey).build());
-            context.getLogger().log("Get input stream " + inputStream.toString());
-
-            HeadObjectResponse headObjectResponse = s3Client.headObject(HeadObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(objectKey)
-                    .build());
-            context.getLogger().log(headObjectResponse.toString());
-            String mimeType = headObjectResponse.contentType();
-            context.getLogger().log("mimeType : " + mimeType);
             String imageFormat = getImageFormatFromMimeType(mimeType);
-            context.getLogger().log("imageFormat : " + imageFormat);
-
             InputStream processedImage = processImageWithWatermark(inputStream, fullName, imageFormat);
 
-            String processedObjectKey = UUID.randomUUID() + imageFormat;
+            uploadProcessedImage(objectKey, mimeType, processedImage);
 
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                    .bucket(primaryBucket)
-                    .key(processedObjectKey)
-                    .contentType(mimeType)
-                    .build();
-            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(processedImage, processedImage.available()));
-            context.getLogger().log("https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + processedObjectKey);
-            response = saveImageUrlToDynamoDb(processedObjectKey, userId, fullName);
+            response = saveImageUrlToDynamoDb(objectKey, userId, fullName);
 
-            s3Client.deleteObject(DeleteObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(objectKey)
-                    .build());
+            deleteOriginalImage(bucketName, objectKey);
 
         } catch (Exception e) {
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
 //            invokeStepFunction(event);
         }
         return response;
+    }
+
+    private ResponseInputStream<GetObjectResponse> fetchInputStream(String bucketName, String objectKey) {
+        return s3Client.getObject(GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build());
+    }
+
+    private String fetchMimeType(String bucketName, String objectKey) {
+        HeadObjectResponse headResponse = s3Client.headObject(HeadObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build());
+        return headResponse.contentType();
     }
 
     private String getImageFormatFromMimeType(String mimeType) {
@@ -112,7 +101,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         };
     }
 
-    public InputStream processImageWithWatermark(InputStream inputStream, String fullName, String imageFormat) throws IOException, IOException {
+    public InputStream processImageWithWatermark(InputStream inputStream, String fullName, String imageFormat) throws IOException {
         BufferedImage originalImage = ImageIO.read(inputStream);
         int fontSize = originalImage.getWidth() / 10;
 
@@ -149,21 +138,28 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         return brightness > 128 ? new Color(0, 0, 0, 75) : new Color(255, 255, 255, 75);
     }
 
+    private void uploadProcessedImage(String objectKey, String mimeType, InputStream processedImage) throws IOException {
+        s3Client.putObject(PutObjectRequest.builder()
+                        .bucket(primaryBucket)
+                        .key(objectKey)
+                        .contentType(mimeType)
+                        .build(),
+                RequestBody.fromInputStream(processedImage, processedImage.available()));
+    }
+
     private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String userId, String fullName) {
         String imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey;
 
-        System.out.println("Saving imageBase64 metadata:");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy HH:mm");
 
-        System.out.println("User: " + userId);
-        System.out.println("Image URL: " + imageUrl);
-        System.out.println("Upload Time: " + LocalDateTime.now());
         PutItemRequest putItemRequest = PutItemRequest.builder()
                 .tableName(dynamodbTable)
                 .item(Map.of(
                         "photoId", AttributeValue.builder().s(imageKey).build(),
                         "owner", AttributeValue.builder().s(userId).build(),
+                        "fullName", AttributeValue.builder().s(fullName).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
-                        "uploadDate", AttributeValue.builder().s(LocalDateTime.now().toString()).build()))
+                        "uploadDate", AttributeValue.builder().s(LocalDateTime.now().format(formatter)).build()))
                 .build();
         PutItemResponse response = dynamoDbClient.putItem(putItemRequest);
 
@@ -174,6 +170,13 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         imageMetadata.put("uploadDate", LocalDateTime.now().toString());
 
         return imageMetadata;
+    }
+
+    private void deleteOriginalImage(String bucketName, String objectKey) {
+        s3Client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build());
     }
 
     private void invokeStepFunction(Map<String, String> events) {

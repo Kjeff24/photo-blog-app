@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.ImageUploadRequest;
 import org.example.exception.CustomBadRequestException;
+import org.example.model.ImageMetadata;
 import org.example.service.ImageService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class ImageServiceImpl implements ImageService {
 
     private final DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    public String uploadImage(ImageUploadRequest request) {
+    public ImageMetadata uploadImage(ImageUploadRequest request) {
         try {
             byte[] imageBytes = Base64.getDecoder().decode(request.imageBase64());
             String mimeType = detectMimeType(imageBytes);
@@ -61,15 +62,13 @@ public class ImageServiceImpl implements ImageService {
                     "fullName", request.fullName()
             );
 
-            invokeLambda(lambdaEvent);
-
-            return "Successfully uploaded imageBase64 to " + stagingBucket + "/" + objectKey;
+            return invokeLambda(lambdaEvent);
         } catch (CustomBadRequestException e) {
             throw new CustomBadRequestException("Image upload failed: " + e.getMessage());
         }
     }
 
-    private void invokeLambda(Map<String, String> lambdaEvent) {
+    private ImageMetadata invokeLambda(Map<String, String> lambdaEvent) {
 
         String eventJson = new Gson().toJson(lambdaEvent);
 
@@ -80,8 +79,10 @@ public class ImageServiceImpl implements ImageService {
 
         InvokeResponse invokeResult = lambdaClient.invoke(invokeRequest);
 
-        String response = invokeResult.payload().toString();
-        System.out.println("Lambda invocation response: " + response);
+        String responsePayload = invokeResult.payload().asUtf8String();
+        System.out.println("Lambda invocation response: " + responsePayload);
+
+        return new Gson().fromJson(responsePayload, ImageMetadata.class);
     }
 
 

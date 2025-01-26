@@ -43,8 +43,7 @@ public class ImageServiceImpl implements ImageService {
             String mimeType = detectMimeType(imageBytes);
             validateImageType(mimeType);
 
-            String imageFormat = getImageFormat(mimeType);
-            String objectKey = UUID.randomUUID() + "." + imageFormat;
+            String objectKey = String.valueOf(UUID.randomUUID());
 
             s3Client.putObject(
                     PutObjectRequest.builder()
@@ -98,16 +97,6 @@ public class ImageServiceImpl implements ImageService {
         if (!mimeType.startsWith("image/")) {
             throw new CustomBadRequestException("Invalid file type. Only images are allowed.");
         }
-    }
-
-    private String getImageFormat(String mimeType) {
-        return switch (mimeType) {
-            case "image/jpeg", "imageBase64/jpg" -> "jpg";
-            case "image/png" -> "png";
-            case "image/gif" -> "gif";
-            case "image/webp" -> "webp";
-            default -> throw new CustomBadRequestException("Unsupported imageBase64 type: " + mimeType);
-        };
     }
 
 }

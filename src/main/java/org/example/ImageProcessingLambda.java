@@ -113,26 +113,39 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
 
     public InputStream processImageWithWatermark(InputStream inputStream, String fullName, String imageFormat) throws IOException, IOException {
         BufferedImage originalImage = ImageIO.read(inputStream);
+        int fontSize = originalImage.getWidth() / 10;
 
         Graphics2D graphics = (Graphics2D) originalImage.getGraphics();
-
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        Font font = new Font("Arial", Font.PLAIN, 50);
+        Font font = new Font("Arial", Font.PLAIN, fontSize);
         graphics.setFont(font);
-        graphics.setColor(new Color(255, 255, 255, 128));
 
         FontMetrics fontMetrics = graphics.getFontMetrics();
-        int x = originalImage.getWidth() - fontMetrics.stringWidth(fullName) - 20;
-        int y = originalImage.getHeight() - 20;
-        graphics.drawString(fullName, x, y);
+        int textWidth = fontMetrics.stringWidth(fullName);
+        int textHeight = fontMetrics.getHeight();
 
+        int x = (originalImage.getWidth() - textWidth) / 2;
+        int y = (originalImage.getHeight() + textHeight) / 2;
+
+        Color backgroundColor = new Color(originalImage.getRGB(Math.max(0, x), Math.max(0, y - textHeight / 2)));
+        Color fontColor = getWatermarkColor(backgroundColor);
+
+        graphics.setColor(fontColor);
+        graphics.drawString(fullName, x, y);
         graphics.dispose();
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         ImageIO.write(originalImage, imageFormat, byteArrayOutputStream);
 
         return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+    }
+
+    private static Color getWatermarkColor(Color backgroundColor) {
+        int brightness = (int) Math.sqrt(0.299 * Math.pow(backgroundColor.getRed(), 2) +
+                0.587 * Math.pow(backgroundColor.getGreen(), 2) +
+                0.114 * Math.pow(backgroundColor.getBlue(), 2));
+        return brightness > 128 ? new Color(0, 0, 0, 75) : new Color(255, 255, 255, 75);
     }
 
     private void saveImageUrlToDynamoDb(String imageKey, String userId, String fullName) {

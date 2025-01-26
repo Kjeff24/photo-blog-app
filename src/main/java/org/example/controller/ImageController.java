@@ -3,6 +3,7 @@ package org.example.controller;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.ImageUploadRequest;
 import org.example.dto.MessageResponse;
+import org.example.model.ImageMetadata;
 import org.example.service.ImageService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -19,11 +20,10 @@ public class ImageController {
 
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.OK)
-    public MessageResponse uploadImage(
+    public ImageMetadata uploadImage(
             @RequestBody ImageUploadRequest imageUploadRequest
     ) {
-        String imageUrl = imageService.uploadImage(imageUploadRequest);
-        return MessageResponse.builder().message("Image Upload successful: " + imageUrl).build();
+        return imageService.uploadImage(imageUploadRequest);
 
     }
 

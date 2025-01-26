@@ -8,6 +8,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.sfn.SfnClient;
@@ -22,15 +23,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class ImageProcessingLambda implements RequestHandler<Map<String, String>, String> {
+public class ImageProcessingLambda implements RequestHandler<Map<String, String>, Map<String, Object>> {
 
     private final SfnClient sfnClient;
     private final S3Client s3Client;
     private final DynamoDbClient dynamoDbClient;
-    //    private final String stagingBucket;
     private final String primaryBucket;
     private final String awsRegion;
     private final String stepFunctionArn;
@@ -40,14 +41,14 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         sfnClient = SfnClient.create();
         s3Client = S3Client.create();
         dynamoDbClient = DynamoDbClient.create();
-//        stagingBucket = System.getenv("STAGING_BUCKET");
         primaryBucket = System.getenv("S3_BUCKET_PRIMARY");
         stepFunctionArn = System.getenv("STEP_FUNCTION_ARN");
         awsRegion = System.getenv("AWS_REGION");
         dynamodbTable = System.getenv("DYNAMODB_TABLE");
     }
 
-    public String handleRequest(Map<String, String> event, Context context) {
+    public Map<String, Object> handleRequest(Map<String, String> event, Context context) {
+        Map<String, Object> response = Map.of();
         String bucketName = event.get("bucketName");
         String objectKey = event.get("objectKey");
         String userId = event.get("userId");
@@ -86,7 +87,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
                     .build();
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(processedImage, processedImage.available()));
             context.getLogger().log("https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + processedObjectKey);
-            saveImageUrlToDynamoDb(processedObjectKey, userId, fullName);
+            response = saveImageUrlToDynamoDb(processedObjectKey, userId, fullName);
 
             s3Client.deleteObject(DeleteObjectRequest.builder()
                     .bucket(bucketName)
@@ -97,7 +98,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
 //            invokeStepFunction(event);
         }
-        return "";
+        return response;
     }
 
     private String getImageFormatFromMimeType(String mimeType) {
@@ -148,7 +149,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         return brightness > 128 ? new Color(0, 0, 0, 75) : new Color(255, 255, 255, 75);
     }
 
-    private void saveImageUrlToDynamoDb(String imageKey, String userId, String fullName) {
+    private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String userId, String fullName) {
         String imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey;
 
         System.out.println("Saving imageBase64 metadata:");
@@ -156,15 +157,23 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         System.out.println("User: " + userId);
         System.out.println("Image URL: " + imageUrl);
         System.out.println("Upload Time: " + LocalDateTime.now());
-
-        dynamoDbClient.putItem(PutItemRequest.builder()
+        PutItemRequest putItemRequest = PutItemRequest.builder()
                 .tableName(dynamodbTable)
                 .item(Map.of(
                         "photoId", AttributeValue.builder().s(imageKey).build(),
                         "owner", AttributeValue.builder().s(userId).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
                         "uploadDate", AttributeValue.builder().s(LocalDateTime.now().toString()).build()))
-                .build());
+                .build();
+        PutItemResponse response = dynamoDbClient.putItem(putItemRequest);
+
+        Map<String, Object> imageMetadata = new HashMap<>();
+        imageMetadata.put("photoId", imageKey);
+        imageMetadata.put("owner", userId);
+        imageMetadata.put("imageUrl", imageUrl);
+        imageMetadata.put("uploadDate", LocalDateTime.now().toString());
+
+        return imageMetadata;
     }
 
     private void invokeStepFunction(Map<String, String> events) {

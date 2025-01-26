@@ -17,7 +17,8 @@ dependencies {
           'software.amazon.awssdk:dynamodb:2.30.2',
           'software.amazon.awssdk:sfn:2.30.2',
           'software.amazon.awssdk:lambda:2.30.2',
-          'com.google.code.gson:gson:2.11.0'
+          'software.amazon.awssdk:dynamodb-enhanced:2.30.2',
+          'com.google.code.gson:gson:2.11.0',
   )
 
   compileOnly 'org.projectlombok:lombok:1.18.36'

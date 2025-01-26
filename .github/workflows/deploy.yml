@@ -7,8 +7,6 @@ on:
       - prod
 
 env:
-#  FRONT_END_URI: ${{ secrets.FRONT_END_URI }}
-#  ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -75,14 +73,6 @@ jobs:
         run: |
           PARAM_OVERRIDES=""
           
-#          if [ -n "$FRONT_END_URI" ]; then
-#            PARAM_OVERRIDES="$PARAM_OVERRIDES FrontendProdHost=$FRONT_END_URI"
-#          fi
-#
-#          if [ -n "$ADMIN_EMAIL" ]; then
-#            PARAM_OVERRIDES="$PARAM_OVERRIDES AdminEmail=$ADMIN_EMAIL"
-#          fi
-          
           if [ -n "$PARAM_OVERRIDES" ]; then
             PARAM_OVERRIDES="--parameter-overrides $PARAM_OVERRIDES"
           fi
@@ -119,14 +109,6 @@ jobs:
       - name: Deploy using SAM
         run: |
           PARAM_OVERRIDES=""
-#
-#          if [ -n "$FRONT_END_URI" ]; then
-#            PARAM_OVERRIDES="$PARAM_OVERRIDES FrontendProdHost=$FRONT_END_URI"
-#          fi
-#
-#          if [ -n "$ADMIN_EMAIL" ]; then
-#            PARAM_OVERRIDES="$PARAM_OVERRIDES AdminEmail=$ADMIN_EMAIL"
-#          fi
           
           if [ -n "$PARAM_OVERRIDES" ]; then
             PARAM_OVERRIDES="--parameter-overrides $PARAM_OVERRIDES"

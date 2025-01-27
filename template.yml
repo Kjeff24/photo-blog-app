@@ -210,7 +210,7 @@ Resources:
           Projection:
             ProjectionType: ALL
       BillingMode: PAY_PER_REQUEST
-
+  
   StepFunctionStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
@@ -234,6 +234,12 @@ Resources:
             "ImageProcessing": {
               "Type": "Task",
               "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ImageProcessingLambda",
+              "Parameters": {
+                "bucketName.$": "$.bucketName",
+                "objectKey.$": "$.objectKey",
+                "email.$": "$.email",
+                "fullName.$": "$.fullName"
+              },
               "Retry": [
                 {
                   "ErrorEquals": [
@@ -257,6 +263,10 @@ Resources:
             "NotifyFailure": {
               "Type": "Task",
               "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-NotifyFailureLambda",
+              "Parameters": {
+                "email.$": "$.email",
+                "fullName.$": "$.fullName"
+              },
               "Next": "FailState"
             },
             "SuccessState": {
@@ -269,9 +279,8 @@ Resources:
             }
           }
         }
-  
-  
-  
+
+
 
   # BUCKET POLICIES
 

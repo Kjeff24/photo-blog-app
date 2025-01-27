@@ -27,7 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ImageProcessingLambda implements RequestHandler<Map<String, String>, Map<String, Object>> {
+public class ImageProcessingLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
     private final SfnClient sfnClient;
     private final S3Client s3Client;
@@ -48,33 +48,40 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         dynamodbTable = System.getenv("DYNAMODB_TABLE");
     }
 
-    public Map<String, Object> handleRequest(Map<String, String> event, Context context) {
+    public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
         System.out.println("Events: " + event.toString());
-        String bucketName = event.get("bucketName");
-        String objectKey = event.get("objectKey");
-        String email = event.get("email");
-        String fullName = event.get("fullName");
+        String bucketName = (String) event.get("bucketName");
+        String objectKey = (String) event.get("objectKey");
+        String email = (String) event.get("email");
+        String fullName = (String) event.get("fullName");
+        int retryAttempt = event.get("retryAttempt")!= null ? Integer.parseInt(event.get("retryAttempt").toString()) : 0;
+
 
         Map<String, Object> response = new HashMap<>();
 
         try {
-            ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
-            String mimeType = fetchMimeType(bucketName, objectKey);
+//            Test failure in image processing
+            throw new Exception("Image Processing error");
 
-            String imageFormat = getImageFormatFromMimeType(mimeType);
-            InputStream processedImage = processImageWithWatermark(inputStream, fullName, imageFormat);
-
-            uploadProcessedImage(objectKey, mimeType, processedImage);
-
-            response = saveImageUrlToDynamoDb(objectKey, email, fullName);
-
-            deleteOriginalImage(bucketName, objectKey);
+//            ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
+//            String mimeType = fetchMimeType(bucketName, objectKey);
+//
+//            String imageFormat = getImageFormatFromMimeType(mimeType);
+//            InputStream processedImage = processImageWithWatermark(inputStream, fullName, imageFormat);
+//
+//            uploadProcessedImage(objectKey, mimeType, processedImage);
+//
+//            deleteOriginalImage(bucketName, objectKey);
+//
+//            response = saveImageUrlToDynamoDb(objectKey, email, fullName);
 
         } catch (Exception e) {
+            System.out.println("Retry attempt: " + retryAttempt);
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
-//            invokeStepFunction(event);
+            invokeStepFunction(event, retryAttempt);
+
+            throw new RuntimeException("ImageProcessingFailed: " + e.getMessage());
         }
-        return response;
     }
 
     private ResponseInputStream<GetObjectResponse> fetchInputStream(String bucketName, String objectKey) {
@@ -182,9 +189,10 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
                 .build());
     }
 
-    private void invokeStepFunction(Map<String, String> events) {
+    private void invokeStepFunction(Map<String, Object> events, int retryAttempt) {
         events.put("workflowType", "image-processing-retry");
-
+        events.put("retryAttempt", ++retryAttempt);
+        System.out.println("Retry attempt: " + retryAttempt);
         String payload = new Gson().toJson(events);
         StartExecutionRequest startExecutionRequest = StartExecutionRequest.builder()
                 .stateMachineArn(stepFunctionArn)

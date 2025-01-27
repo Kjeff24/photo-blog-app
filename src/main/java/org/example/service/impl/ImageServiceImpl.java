@@ -35,8 +35,6 @@ public class ImageServiceImpl implements ImageService {
     @Value("${aws.lambda.function.image-processing-lambda}")
     private String imageProcessingLambda;
 
-    private final DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-
     public ImageMetadata uploadImage(ImageUploadRequest request) {
         try {
             byte[] imageBytes = Base64.getDecoder().decode(request.imageBase64());
@@ -58,12 +56,13 @@ public class ImageServiceImpl implements ImageService {
                     "objectKey", objectKey,
                     "bucketName", stagingBucket,
                     "email", request.email(),
-                    "fullName", request.fullName()
+                    "fullName", request.fullName(),
+                    "retryAttempt", String.valueOf(0)
             );
 
             return invokeLambda(lambdaEvent);
-        } catch (CustomBadRequestException e) {
-            throw new CustomBadRequestException("Image upload failed: " + e.getMessage());
+        } catch (Exception e) {
+            throw new CustomBadRequestException("Image upload failed");
         }
     }
 
@@ -80,6 +79,9 @@ public class ImageServiceImpl implements ImageService {
 
         String responsePayload = invokeResult.payload().asUtf8String();
         System.out.println("Lambda invocation response: " + responsePayload);
+        if (invokeResult.functionError() != null && !invokeResult.functionError().isEmpty()) {
+            throw new CustomBadRequestException();
+        }
 
         return new Gson().fromJson(responsePayload, ImageMetadata.class);
     }

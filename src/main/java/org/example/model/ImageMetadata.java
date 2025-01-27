@@ -16,6 +16,7 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecon
 public class ImageMetadata {
     private String photoId;
     private String owner;
+    private String fullName;
     private String imageUrl;
     private String uploadDate;
 
@@ -28,6 +29,11 @@ public class ImageMetadata {
     @DynamoDbSecondaryPartitionKey(indexNames = "OwnerIndex")
     public String getOwner() {
         return owner;
+    }
+
+    @DynamoDbAttribute(value = "fullName")
+    public String getFullName() {
+        return fullName;
     }
 
     @DynamoDbAttribute(value = "imageUrl")

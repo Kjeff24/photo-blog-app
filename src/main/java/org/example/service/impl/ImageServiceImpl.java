@@ -57,7 +57,7 @@ public class ImageServiceImpl implements ImageService {
             Map<String, String> lambdaEvent = Map.of(
                     "objectKey", objectKey,
                     "bucketName", stagingBucket,
-                    "userId", request.userId(),
+                    "email", request.email(),
                     "fullName", request.fullName()
             );
 

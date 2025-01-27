@@ -38,6 +38,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
     private final String dynamodbTable;
 
     public ImageProcessingLambda() {
+        System.setProperty("java.awt.headless", "true");
         sfnClient = SfnClient.create();
         s3Client = S3Client.create();
         dynamoDbClient = DynamoDbClient.create();
@@ -48,9 +49,10 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
     }
 
     public Map<String, Object> handleRequest(Map<String, String> event, Context context) {
+        System.out.println("Events: " + event.toString());
         String bucketName = event.get("bucketName");
         String objectKey = event.get("objectKey");
-        String userId = event.get("userId");
+        String email = event.get("email");
         String fullName = event.get("fullName");
 
         Map<String, Object> response = new HashMap<>();
@@ -64,7 +66,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
 
             uploadProcessedImage(objectKey, mimeType, processedImage);
 
-            response = saveImageUrlToDynamoDb(objectKey, userId, fullName);
+            response = saveImageUrlToDynamoDb(objectKey, email, fullName);
 
             deleteOriginalImage(bucketName, objectKey);
 
@@ -108,7 +110,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         Graphics2D graphics = (Graphics2D) originalImage.getGraphics();
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        Font font = new Font("Arial", Font.PLAIN, fontSize);
+        Font font = new Font(null, Font.PLAIN, fontSize);
         graphics.setFont(font);
 
         FontMetrics fontMetrics = graphics.getFontMetrics();
@@ -147,7 +149,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
                 RequestBody.fromInputStream(processedImage, processedImage.available()));
     }
 
-    private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String userId, String fullName) {
+    private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String email, String fullName) {
         String imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey;
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy HH:mm");
@@ -156,7 +158,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
                 .tableName(dynamodbTable)
                 .item(Map.of(
                         "photoId", AttributeValue.builder().s(imageKey).build(),
-                        "owner", AttributeValue.builder().s(userId).build(),
+                        "owner", AttributeValue.builder().s(email).build(),
                         "fullName", AttributeValue.builder().s(fullName).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
                         "uploadDate", AttributeValue.builder().s(LocalDateTime.now().format(formatter)).build()))
@@ -165,7 +167,8 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
 
         Map<String, Object> imageMetadata = new HashMap<>();
         imageMetadata.put("photoId", imageKey);
-        imageMetadata.put("owner", userId);
+        imageMetadata.put("owner", email);
+        imageMetadata.put("fullName", fullName);
         imageMetadata.put("imageUrl", imageUrl);
         imageMetadata.put("uploadDate", LocalDateTime.now().toString());
 

@@ -13,7 +13,7 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecon
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ImageMetadata {
+public class BlogPost {
     private String photoId;
     private String owner;
     private String fullName;

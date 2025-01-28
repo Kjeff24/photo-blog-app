@@ -2,31 +2,41 @@ package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dto.ImageUploadRequest;
-import org.example.dto.MessageResponse;
-import org.example.model.ImageMetadata;
+import org.example.model.BlogPost;
 import org.example.service.ImageService;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/images")
+@RequestMapping("/blog")
 public class ImageController {
 
     private final ImageService imageService;
 
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.OK)
-    public ImageMetadata uploadImage(
+    public BlogPost uploadImage(
             @RequestBody ImageUploadRequest imageUploadRequest
     ) {
         return imageService.uploadImage(imageUploadRequest);
 
     }
 
+    @PostMapping("/generate-url/{objectKey}")
+    @ResponseStatus(HttpStatus.OK)
+    public BlogPost generatePreSignedUrl(@PathVariable("objectKey") String objectKey) {
+        return imageService.generatePreSignedUrl(objectKey);
+    }
 
     @GetMapping("/{userId}")
     @ResponseStatus(HttpStatus.OK)

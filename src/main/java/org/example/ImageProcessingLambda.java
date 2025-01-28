@@ -41,6 +41,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
     public ImageProcessingLambda() {
         System.setProperty("java.awt.headless", "true");
+        System.setProperty("user.fontconfig.cache", "/tmp/.fontconfig");
         sfnClient = SfnClient.create();
         s3Client = S3Client.create();
         dynamoDbClient = DynamoDbClient.create();

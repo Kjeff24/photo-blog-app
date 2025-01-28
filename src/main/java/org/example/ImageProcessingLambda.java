@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public class ImageProcessingLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
@@ -54,34 +55,36 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         String objectKey = (String) event.get("objectKey");
         String email = (String) event.get("email");
         String fullName = (String) event.get("fullName");
-        int retryAttempt = event.get("retryAttempt")!= null ? Integer.parseInt(event.get("retryAttempt").toString()) : 0;
+        int retryAttempt = event.get("retryAttempt")!= null ? Integer.parseInt(event.get("retryAttempt").toString()) + 1 : 0;
 
 
-        Map<String, Object> response = new HashMap<>();
+        Map<String, Object> response;
 
         try {
-//            Test failure in image processing
-            throw new Exception("Image Processing error");
 
-//            ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
-//            String mimeType = fetchMimeType(bucketName, objectKey);
-//
-//            String imageFormat = getImageFormatFromMimeType(mimeType);
-//            InputStream processedImage = processImageWithWatermark(inputStream, fullName, imageFormat);
-//
-//            uploadProcessedImage(objectKey, mimeType, processedImage);
-//
-//            deleteOriginalImage(bucketName, objectKey);
-//
-//            response = saveImageUrlToDynamoDb(objectKey, email, fullName);
+            ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
+
+            String mimeType = fetchMimeType(bucketName, objectKey);
+
+            String imageFormat = getImageFormatFromMimeType(mimeType);
+            InputStream processedImage = processImageWithWatermark(inputStream, fullName, imageFormat);
+
+            uploadProcessedImage(objectKey, mimeType, processedImage);
+
+            response = saveImageUrlToDynamoDb(objectKey, email, fullName);
+
+            deleteOriginalImage(bucketName, objectKey);
 
         } catch (Exception e) {
-            System.out.println("Retry attempt: " + retryAttempt);
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
-            invokeStepFunction(event, retryAttempt);
+            if(retryAttempt < 3) {
+                System.out.println("Retry attempt: " + retryAttempt);
+                invokeStepFunction(event, retryAttempt);
+            }
 
             throw new RuntimeException("ImageProcessingFailed: " + e.getMessage());
         }
+        return response;
     }
 
     private ResponseInputStream<GetObjectResponse> fetchInputStream(String bucketName, String objectKey) {
@@ -159,7 +162,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
     private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String email, String fullName) {
         String imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey;
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy HH:mm");
+        String uploadDate = LocalDateTime.now().toString();
 
         PutItemRequest putItemRequest = PutItemRequest.builder()
                 .tableName(dynamodbTable)
@@ -168,16 +171,17 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
                         "owner", AttributeValue.builder().s(email).build(),
                         "fullName", AttributeValue.builder().s(fullName).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
-                        "uploadDate", AttributeValue.builder().s(LocalDateTime.now().format(formatter)).build()))
+                        "uploadDate", AttributeValue.builder().s(uploadDate).build()))
                 .build();
-        PutItemResponse response = dynamoDbClient.putItem(putItemRequest);
+
+        dynamoDbClient.putItem(putItemRequest);
 
         Map<String, Object> imageMetadata = new HashMap<>();
         imageMetadata.put("photoId", imageKey);
         imageMetadata.put("owner", email);
         imageMetadata.put("fullName", fullName);
         imageMetadata.put("imageUrl", imageUrl);
-        imageMetadata.put("uploadDate", LocalDateTime.now().toString());
+        imageMetadata.put("uploadDate", uploadDate);
 
         return imageMetadata;
     }
@@ -191,16 +195,13 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
     private void invokeStepFunction(Map<String, Object> events, int retryAttempt) {
         events.put("workflowType", "image-processing-retry");
-        events.put("retryAttempt", ++retryAttempt);
-        System.out.println("Retry attempt: " + retryAttempt);
+        events.put("retryAttempt", retryAttempt);
         String payload = new Gson().toJson(events);
         StartExecutionRequest startExecutionRequest = StartExecutionRequest.builder()
                 .stateMachineArn(stepFunctionArn)
                 .input(payload)
                 .build();
 
-        StartExecutionResponse result = sfnClient.startExecution(startExecutionRequest);
-        System.out.println("Step Function started with Execution ARN: " + result.executionArn());
-        System.out.println("Started step function");
+        sfnClient.startExecution(startExecutionRequest);
     }
 }

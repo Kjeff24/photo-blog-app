@@ -6,6 +6,7 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 
 @Configuration
@@ -36,6 +37,11 @@ public class AwsConfig {
         return DynamoDbEnhancedClient.builder()
                 .dynamoDbClient(dynamoDbClient)
                 .build();
+    }
+
+    @Bean
+    public S3Presigner getPreSigner() {
+        return S3Presigner.create();
     }
 
 }

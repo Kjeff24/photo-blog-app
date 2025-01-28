@@ -4,9 +4,12 @@ import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.ImageUploadRequest;
 import org.example.exception.CustomBadRequestException;
-import org.example.model.ImageMetadata;
+import org.example.exception.CustomNotFoundException;
+import org.example.model.BlogPost;
+import org.example.repository.BlogRepository;
 import org.example.service.ImageService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cglib.core.Local;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -14,13 +17,19 @@ import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.lambda.model.InvokeRequest;
 import software.amazon.awssdk.services.lambda.model.InvokeResponse;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.net.URLConnection;
-import java.time.format.DateTimeFormatter;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
@@ -30,12 +39,16 @@ import java.util.UUID;
 public class ImageServiceImpl implements ImageService {
     private final S3Client s3Client;
     private final LambdaClient lambdaClient;
+    private final S3Presigner s3Presigner;
+    private final BlogRepository blogRepository;
     @Value("${aws.s3.bucket.staging}")
     private String stagingBucket;
+    @Value("${aws.s3.bucket.primary}")
+    private String primaryBucket;
     @Value("${aws.lambda.function.image-processing-lambda}")
     private String imageProcessingLambda;
 
-    public ImageMetadata uploadImage(ImageUploadRequest request) {
+    public BlogPost uploadImage(ImageUploadRequest request) {
         try {
             byte[] imageBytes = Base64.getDecoder().decode(request.imageBase64());
             String mimeType = detectMimeType(imageBytes);
@@ -66,7 +79,30 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    private ImageMetadata invokeLambda(Map<String, String> lambdaEvent) {
+    public BlogPost generatePreSignedUrl(String objectKey) {
+        BlogPost blogPost = blogRepository.findByPhotoId(objectKey).orElseThrow(() -> new CustomNotFoundException("Photo not found"));
+        if(LocalDateTime.now().isBefore(LocalDateTime.parse(blogPost.getUploadDate()))) {
+            throw new CustomBadRequestException("Temporary Image Url hasn't expired");
+        }
+        Duration expiration = Duration.ofHours(3);
+
+        GetObjectPresignRequest objectRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(expiration)
+                .getObjectRequest(GetObjectRequest.builder()
+                        .bucket(primaryBucket)
+                        .key(objectKey)
+                        .build())
+                .build();
+
+        PresignedGetObjectRequest temporaryAccessUrl = s3Presigner.presignGetObject(objectRequest);
+        URL url = temporaryAccessUrl.url();
+        blogPost.setTemporaryImageUrl(url.toString());
+        blogRepository.save(blogPost);
+        return blogPost;
+    }
+
+
+    private BlogPost invokeLambda(Map<String, String> lambdaEvent) {
 
         String eventJson = new Gson().toJson(lambdaEvent);
 
@@ -83,7 +119,7 @@ public class ImageServiceImpl implements ImageService {
             throw new CustomBadRequestException();
         }
 
-        return new Gson().fromJson(responsePayload, ImageMetadata.class);
+        return new Gson().fromJson(responsePayload, BlogPost.class);
     }
 
 

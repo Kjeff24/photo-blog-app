@@ -13,11 +13,12 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecon
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ImageMetadata {
+public class BlogPost {
     private String photoId;
     private String owner;
     private String fullName;
     private String imageUrl;
+    private String temporaryImageUrl;
     private String uploadDate;
 
     @DynamoDbPartitionKey
@@ -39,6 +40,11 @@ public class ImageMetadata {
     @DynamoDbAttribute(value = "imageUrl")
     public String getImageUrl() {
         return imageUrl;
+    }
+
+    @DynamoDbAttribute(value = "temporaryImageUrl")
+    public String getTemporaryImageUrl() {
+        return temporaryImageUrl;
     }
 
     @DynamoDbAttribute(value = "uploadDate")

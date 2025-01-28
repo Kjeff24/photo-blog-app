@@ -8,12 +8,15 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
-import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
-import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -23,10 +26,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 public class ImageProcessingLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
@@ -40,6 +41,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
     public ImageProcessingLambda() {
         System.setProperty("java.awt.headless", "true");
+        System.setProperty("user.fontconfig.cache", "/tmp/.fontconfig");
         sfnClient = SfnClient.create();
         s3Client = S3Client.create();
         dynamoDbClient = DynamoDbClient.create();
@@ -55,7 +57,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         String objectKey = (String) event.get("objectKey");
         String email = (String) event.get("email");
         String fullName = (String) event.get("fullName");
-        int retryAttempt = event.get("retryAttempt")!= null ? Integer.parseInt(event.get("retryAttempt").toString()) + 1 : 0;
+        int retryAttempt = event.get("retryAttempt") != null ? Integer.parseInt(event.get("retryAttempt").toString()) + 1 : 0;
 
 
         Map<String, Object> response;
@@ -77,7 +79,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
         } catch (Exception e) {
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
-            if(retryAttempt < 3) {
+            if (retryAttempt < 3) {
                 System.out.println("Retry attempt: " + retryAttempt);
                 invokeStepFunction(event, retryAttempt);
             }

@@ -27,7 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ImageProcessingLambda implements RequestHandler<Map<String, String>, Map<String, Object>> {
+public class ImageProcessingLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
     private final SfnClient sfnClient;
     private final S3Client s3Client;
@@ -38,6 +38,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
     private final String dynamodbTable;
 
     public ImageProcessingLambda() {
+        System.setProperty("java.awt.headless", "true");
         sfnClient = SfnClient.create();
         s3Client = S3Client.create();
         dynamoDbClient = DynamoDbClient.create();
@@ -47,32 +48,40 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         dynamodbTable = System.getenv("DYNAMODB_TABLE");
     }
 
-    public Map<String, Object> handleRequest(Map<String, String> event, Context context) {
-        String bucketName = event.get("bucketName");
-        String objectKey = event.get("objectKey");
-        String userId = event.get("userId");
-        String fullName = event.get("fullName");
+    public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
+        System.out.println("Events: " + event.toString());
+        String bucketName = (String) event.get("bucketName");
+        String objectKey = (String) event.get("objectKey");
+        String email = (String) event.get("email");
+        String fullName = (String) event.get("fullName");
+        int retryAttempt = event.get("retryAttempt")!= null ? Integer.parseInt(event.get("retryAttempt").toString()) : 0;
+
 
         Map<String, Object> response = new HashMap<>();
 
         try {
-            ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
-            String mimeType = fetchMimeType(bucketName, objectKey);
+//            Test failure in image processing
+            throw new Exception("Image Processing error");
 
-            String imageFormat = getImageFormatFromMimeType(mimeType);
-            InputStream processedImage = processImageWithWatermark(inputStream, fullName, imageFormat);
-
-            uploadProcessedImage(objectKey, mimeType, processedImage);
-
-            response = saveImageUrlToDynamoDb(objectKey, userId, fullName);
-
-            deleteOriginalImage(bucketName, objectKey);
+//            ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
+//            String mimeType = fetchMimeType(bucketName, objectKey);
+//
+//            String imageFormat = getImageFormatFromMimeType(mimeType);
+//            InputStream processedImage = processImageWithWatermark(inputStream, fullName, imageFormat);
+//
+//            uploadProcessedImage(objectKey, mimeType, processedImage);
+//
+//            deleteOriginalImage(bucketName, objectKey);
+//
+//            response = saveImageUrlToDynamoDb(objectKey, email, fullName);
 
         } catch (Exception e) {
+            System.out.println("Retry attempt: " + retryAttempt);
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
-//            invokeStepFunction(event);
+            invokeStepFunction(event, retryAttempt);
+
+            throw new RuntimeException("ImageProcessingFailed: " + e.getMessage());
         }
-        return response;
     }
 
     private ResponseInputStream<GetObjectResponse> fetchInputStream(String bucketName, String objectKey) {
@@ -108,7 +117,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
         Graphics2D graphics = (Graphics2D) originalImage.getGraphics();
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        Font font = new Font("Arial", Font.PLAIN, fontSize);
+        Font font = new Font(null, Font.PLAIN, fontSize);
         graphics.setFont(font);
 
         FontMetrics fontMetrics = graphics.getFontMetrics();
@@ -147,7 +156,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
                 RequestBody.fromInputStream(processedImage, processedImage.available()));
     }
 
-    private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String userId, String fullName) {
+    private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String email, String fullName) {
         String imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey;
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy HH:mm");
@@ -156,7 +165,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
                 .tableName(dynamodbTable)
                 .item(Map.of(
                         "photoId", AttributeValue.builder().s(imageKey).build(),
-                        "owner", AttributeValue.builder().s(userId).build(),
+                        "owner", AttributeValue.builder().s(email).build(),
                         "fullName", AttributeValue.builder().s(fullName).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
                         "uploadDate", AttributeValue.builder().s(LocalDateTime.now().format(formatter)).build()))
@@ -165,7 +174,8 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
 
         Map<String, Object> imageMetadata = new HashMap<>();
         imageMetadata.put("photoId", imageKey);
-        imageMetadata.put("owner", userId);
+        imageMetadata.put("owner", email);
+        imageMetadata.put("fullName", fullName);
         imageMetadata.put("imageUrl", imageUrl);
         imageMetadata.put("uploadDate", LocalDateTime.now().toString());
 
@@ -179,9 +189,10 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, String>
                 .build());
     }
 
-    private void invokeStepFunction(Map<String, String> events) {
+    private void invokeStepFunction(Map<String, Object> events, int retryAttempt) {
         events.put("workflowType", "image-processing-retry");
-
+        events.put("retryAttempt", ++retryAttempt);
+        System.out.println("Retry attempt: " + retryAttempt);
         String payload = new Gson().toJson(events);
         StartExecutionRequest startExecutionRequest = StartExecutionRequest.builder()
                 .stateMachineArn(stepFunctionArn)

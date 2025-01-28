@@ -22,7 +22,7 @@
         },
         {
           "Variable": "$.retryAttempt",
-          "NumericGreaterThan": 1,
+          "NumericEquals": 2,
           "Next": "ImageProcessing"
         }
       ],

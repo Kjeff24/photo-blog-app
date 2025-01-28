@@ -6,7 +6,7 @@ aws:
   region: ${AWS_REGION}
   s3.bucket:
     staging: ${S3_BUCKET_STAGING}
-#    primary: ${S3_BUCKET_PRIMARY}
+    primary: ${S3_BUCKET_PRIMARY}
   dynamodb.table : ${DYNAMODB_TABLE}
   lambda.function:
     image-processing-lambda: ${IMAGE_PROCESSING_LAMBDA}

@@ -1,8 +1,11 @@
 package org.example.service;
 
 import org.example.dto.ImageUploadRequest;
-import org.example.model.ImageMetadata;
+import org.example.model.BlogPost;
 
 public interface ImageService {;
-    ImageMetadata uploadImage(ImageUploadRequest imageUploadRequest);
+    BlogPost uploadImage(ImageUploadRequest imageUploadRequest);
+
+    BlogPost generatePreSignedUrl(String objectKey);
+
 }

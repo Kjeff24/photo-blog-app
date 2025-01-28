@@ -73,6 +73,7 @@ Resources:
               - s3:GetObject
               - s3:PutObject
               - s3:DeleteObject
+              - s3:ListBucket
             Resource:
               - !GetAtt PrimaryBucket.Arn
               - !GetAtt StagingBucket.Arn
@@ -93,7 +94,7 @@ Resources:
         Variables:
           S3_BUCKET_PRIMARY: !Ref PrimaryBucket
 #          S3_BUCKET_STAGING: !Ref StagingBucket
-#          DYNAMODB_TABLE: !Ref Table
+          DYNAMODB_TABLE: !Ref Table
           STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
 
   # Lambda Function for SES Notification Processing
@@ -255,7 +256,7 @@ Resources:
             },
             "WaitBeforeRetry": {
               "Type": "Wait",
-              "Seconds": 120,
+              "Seconds": 300,
               "Next": "ImageProcessing"
             },
             "ImageProcessing": {
@@ -280,8 +281,6 @@ Resources:
             }
           }
         }
-
-
 
 # BUCKET POLICIES
 

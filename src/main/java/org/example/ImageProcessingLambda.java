@@ -11,6 +11,9 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
@@ -22,6 +25,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -33,6 +38,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
     private final SfnClient sfnClient;
     private final S3Client s3Client;
     private final DynamoDbClient dynamoDbClient;
+    private final S3Presigner s3Presigner;
     private final String primaryBucket;
     private final String awsRegion;
     private final String stepFunctionArn;
@@ -43,6 +49,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         sfnClient = SfnClient.create();
         s3Client = S3Client.create();
         dynamoDbClient = DynamoDbClient.create();
+        s3Presigner = S3Presigner.create();
         primaryBucket = System.getenv("S3_BUCKET_PRIMARY");
         stepFunctionArn = System.getenv("STEP_FUNCTION_ARN");
         awsRegion = System.getenv("AWS_REGION");
@@ -71,7 +78,9 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
             uploadProcessedImage(objectKey, mimeType, processedImage);
 
-            response = saveImageUrlToDynamoDb(objectKey, email, fullName);
+            String temporaryAccessUrl = generateTemporaryUrl(objectKey);
+
+            response = saveImageUrlToDynamoDb(objectKey, email, fullName, temporaryAccessUrl);
 
             deleteOriginalImage(bucketName, objectKey);
 
@@ -159,7 +168,25 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
                 RequestBody.fromInputStream(processedImage, processedImage.available()));
     }
 
-    private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String email, String fullName) {
+    public String generateTemporaryUrl(String objectKey) {
+        Duration expiration = Duration.ofHours(3);
+
+        // Build the preSigned URL request
+        GetObjectPresignRequest objectRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(expiration)
+                .getObjectRequest(GetObjectRequest.builder()
+                        .bucket(primaryBucket)
+                        .key(objectKey)
+                        .build())
+                .build();
+
+        PresignedGetObjectRequest temporaryAccessUrl = s3Presigner.presignGetObject(objectRequest);
+        URL url = temporaryAccessUrl.url();
+
+        return url.toString();
+    }
+
+    private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String email, String fullName, String temporaryImageUrl) {
         String imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey;
 
         String uploadDate = LocalDateTime.now().toString();
@@ -171,6 +198,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
                         "owner", AttributeValue.builder().s(email).build(),
                         "fullName", AttributeValue.builder().s(fullName).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
+                        "temporaryImageUrl", AttributeValue.builder().s(temporaryImageUrl).build(),
                         "uploadDate", AttributeValue.builder().s(uploadDate).build()))
                 .build();
 
@@ -181,6 +209,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         imageMetadata.put("owner", email);
         imageMetadata.put("fullName", fullName);
         imageMetadata.put("imageUrl", imageUrl);
+        imageMetadata.put("temporaryImageUrl", temporaryImageUrl);
         imageMetadata.put("uploadDate", uploadDate);
 
         return imageMetadata;

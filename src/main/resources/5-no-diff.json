@@ -1,0 +1,57 @@
+{
+  "StartAt": "DetermineWorkflow",
+  "States": {
+    "DetermineWorkflow": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.workflowType",
+          "StringEquals": "image-processing-retry",
+          "Next": "CheckRetryAttempt"
+        }
+      ],
+      "Default": "FailState"
+    },
+    "CheckRetryAttempt": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.retryAttempt",
+          "NumericEquals": 1,
+          "Next": "WaitBeforeRetry"
+        },
+        {
+          "Variable": "$.retryAttempt",
+          "NumericGreaterThan": 1,
+          "Next": "ImageProcessing"
+        }
+      ],
+      "Default": "FailState"
+    },
+    "WaitBeforeRetry": {
+      "Type": "Wait",
+      "Seconds": 300,
+      "Next": "ImageProcessing"
+    },
+    "ImageProcessing": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ImageProcessingLambda",
+      "Parameters": {
+        "bucketName.$": "$.bucketName",
+        "objectKey.$": "$.objectKey",
+        "email.$": "$.email",
+        "fullName.$": "$.fullName",
+        "retryAttempt.$": "$.retryAttempt"
+      },
+      "Next": "SuccessState"
+    },
+    "SuccessState": {
+      "Type": "Succeed"
+    },
+    "FailState": {
+      "Type": "Fail",
+      "Error": "ProcessingFailed",
+      "Cause": "Image processing failed after retries."
+    }
+  }
+}

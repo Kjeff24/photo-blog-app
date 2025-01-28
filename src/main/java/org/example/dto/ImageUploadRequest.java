@@ -12,5 +12,5 @@ public record ImageUploadRequest(
         @ImageSize(message = "Image limit size is 5MB")
         String imageBase64,
         String fullName,
-        String userId) {
+        String email) {
 }

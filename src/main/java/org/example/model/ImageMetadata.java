@@ -18,6 +18,7 @@ public class ImageMetadata {
     private String owner;
     private String fullName;
     private String imageUrl;
+    private String temporaryImageUrl;
     private String uploadDate;
 
     @DynamoDbPartitionKey
@@ -39,6 +40,11 @@ public class ImageMetadata {
     @DynamoDbAttribute(value = "imageUrl")
     public String getImageUrl() {
         return imageUrl;
+    }
+
+    @DynamoDbAttribute(value = "temporaryImageUrl")
+    public String getTemporaryImageUrl() {
+        return temporaryImageUrl;
     }
 
     @DynamoDbAttribute(value = "uploadDate")

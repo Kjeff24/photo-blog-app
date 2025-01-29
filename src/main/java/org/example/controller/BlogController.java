@@ -3,10 +3,12 @@ package org.example.controller;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.ImageUploadRequest;
 import org.example.model.BlogPost;
+import org.example.service.BlogService;
 import org.example.service.ImageService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,14 +18,21 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/blog")
-public class ImageController {
-
+public class BlogController {
     private final ImageService imageService;
+    private final BlogService blogService;
+
+    @GetMapping
+    @ResponseStatus(HttpStatus.OK)
+    public List<BlogPost> getAllBlogPosts() {
+        return blogService.findAllBlogPost();
+    }
 
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.OK)
@@ -42,23 +51,19 @@ public class ImageController {
         return imageService.generatePreSignedUrl(objectKey);
     }
 
-    @GetMapping("/{userId}")
+
+    @GetMapping("/user")
     @ResponseStatus(HttpStatus.OK)
-    public Map<String, String> getUserImages(@PathVariable("userId") String userId) {
+    public List<BlogPost> getBlogPostByUser(@AuthenticationPrincipal Jwt jwt) {
+        String userEmail = jwt.getClaimAsString("email");
 
-//        QueryRequest queryRequest = QueryRequest.builder()
-//                .tableName(tableName)
-//                .keyConditionExpression("UserId = :userId")
-//                .expressionAttributeValues(Map.of(":userId", AttributeValue.builder().s(userId).build()))
-//                .build();
-//
-//        Map<String, String> imageUrls = new HashMap<>();
-//        dynamoDbClient.query(queryRequest).items().forEach(item -> {
-//            String imageId = item.get("ImageId").s();
-//            String url = item.get("ImageUrl").s();
-//            imageUrls.put(imageId, url);
-//        });
+        return blogService.findAllBlogPostByUser(userEmail);
+    }
 
-        return new HashMap<>();
+    @DeleteMapping("/delete/{photoId}")
+    @ResponseStatus(HttpStatus.OK)
+    public void deletePost(@PathVariable("photoId") String photoId, @AuthenticationPrincipal Jwt jwt) {
+        String userEmail = jwt.getClaimAsString("email");
+        blogService.deleteBlogPost(photoId, userEmail);
     }
 }

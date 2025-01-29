@@ -10,7 +10,5 @@ public record ImageUploadRequest(
                 message = "Invalid Base64 string.")
         @NotBlank(message = "Base64 string is required")
         @ImageSize(message = "Image limit size is 5MB")
-        String imageBase64,
-        String fullName,
-        String email) {
+        String imageBase64) {
 }

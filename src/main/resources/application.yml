@@ -10,3 +10,4 @@ aws:
   dynamodb.table : ${DYNAMODB_TABLE}
   lambda.function:
     image-processing-lambda: ${IMAGE_PROCESSING_LAMBDA}
+  sqs.task: ${TASK_QUEUE}

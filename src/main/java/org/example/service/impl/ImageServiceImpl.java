@@ -7,10 +7,12 @@ import org.example.exception.CustomBadRequestException;
 import org.example.exception.CustomNotFoundException;
 import org.example.model.BlogPost;
 import org.example.repository.BlogRepository;
+import org.example.service.CognitoService;
 import org.example.service.ImageService;
 import org.example.service.SqsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cglib.core.Local;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -42,6 +44,7 @@ public class ImageServiceImpl implements ImageService {
     private final LambdaClient lambdaClient;
     private final S3Presigner s3Presigner;
     private final BlogRepository blogRepository;
+    private final CognitoService cognitoService;
     @Value("${aws.s3.bucket.staging}")
     private String stagingBucket;
     @Value("${aws.s3.bucket.primary}")
@@ -49,13 +52,14 @@ public class ImageServiceImpl implements ImageService {
     @Value("${aws.lambda.function.image-processing-lambda}")
     private String imageProcessingLambda;
 
-    public BlogPost uploadImage(ImageUploadRequest request) {
+    public BlogPost uploadImage(ImageUploadRequest request, String userEmail) {
         try {
             byte[] imageBytes = Base64.getDecoder().decode(request.imageBase64());
             String mimeType = detectMimeType(imageBytes);
             validateImageType(mimeType);
 
             String objectKey = String.valueOf(UUID.randomUUID());
+            String fullName = cognitoService.findUserByEmail(userEmail).orElse(userEmail).toUpperCase();
 
             s3Client.putObject(
                     PutObjectRequest.builder()
@@ -69,8 +73,8 @@ public class ImageServiceImpl implements ImageService {
             Map<String, String> lambdaEvent = Map.of(
                     "objectKey", objectKey,
                     "bucketName", stagingBucket,
-                    "email", request.email(),
-                    "fullName", request.fullName(),
+                    "email", userEmail,
+                    "fullName", fullName,
                     "retryAttempt", String.valueOf(0)
             );
 

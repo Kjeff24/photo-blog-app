@@ -64,6 +64,7 @@ Resources:
           S3_BUCKET_STAGING: !Ref StagingBucket
           DYNAMODB_TABLE: !Ref Table
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
+          TASK_QUEUE: !Ref TaskQueue
 
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:
@@ -106,20 +107,74 @@ Resources:
 #          S3_BUCKET_STAGING: !Ref StagingBucket
           DYNAMODB_TABLE: !Ref Table
           STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
+          TASK_QUEUE: !Ref TaskQueue
 
   # Lambda Function for SES Notification Processing
-  NotifyUserLambda:
+  SQSEventLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub ${AWS::StackName}-NotifyUserLambda
-      Handler: org.example.NotifyUserLambda::handleRequest
+      FunctionName: !Sub ${AWS::StackName}-SQSEventLambda
+      Handler: org.example.SQSEventLambda::handleRequest
       Runtime: java21
       CodeUri: .
       MemorySize: 512
       Timeout: 30
       Policies:
         - AWSLambdaBasicExecutionRole
+        - Statement:
+            Effect: Allow
+            Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+            Resource: !GetAtt TaskQueue.Arn
+        - Statement:
+            Effect: Allow
+            Action:
+              - sns:Publish
+              - sns:ListSubscriptionsByTopic
+              - sns:GetSubscriptionAttributes
+              - sns:SetSubscriptionAttributes
+            Resource: !Ref NotificationTopic
+      Environment:
+        Variables:
+          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopic
+      Events:
+        SQSTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TaskQueue.Arn
+            BatchSize: 5
 
+  # Lambda Function to send sns subscription after signup
+  CognitoPostConfirmationLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-CognitoPostConfirmationLambda
+      Handler: org.example.CognitoPostConfirmationLambda::handleRequest
+      Runtime: java21
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 30
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            Effect: Allow
+            Action:
+              - sns:Subscribe
+            Resource:
+              - !Ref NotificationTopic
+      Environment:
+        Variables:
+          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopic
+      Events:
+        CognitoPostConfirmationEvent:
+          Type: Cognito
+          Properties:
+            UserPool: !Ref UserPool
+            Trigger: PostConfirmation
+
+  # Staging s3 bucket
   StagingBucket:
     Type: AWS::S3::Bucket
 #    DeletionPolicy: Retain
@@ -131,6 +186,7 @@ Resources:
         IgnorePublicAcls: false
         RestrictPublicBuckets: false
 
+  # Primary s3 bucket
   PrimaryBucket:
     Type: AWS::S3::Bucket
 #    DeletionPolicy: Retain
@@ -233,6 +289,19 @@ Resources:
             ProjectionType: ALL
       BillingMode: PAY_PER_REQUEST
 
+  # SNS topic to send notification
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-NotificationTopic
+
+  # SQS for queuing messages
+  TaskQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-TaskQueue
+
+  # Step function state machine
   StepFunctionStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:

@@ -295,6 +295,8 @@ Resources:
       KeySchema:
         - AttributeName: photoId
           KeyType: HASH
+        - AttributeName: owner
+          KeyType: RANGE
       GlobalSecondaryIndexes:
         - IndexName: OwnerIndex
           KeySchema:

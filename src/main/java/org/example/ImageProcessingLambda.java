@@ -17,6 +17,9 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -34,10 +37,12 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
     private final SfnClient sfnClient;
     private final S3Client s3Client;
     private final DynamoDbClient dynamoDbClient;
+    private final SqsClient sqsClient;
     private final String primaryBucket;
     private final String awsRegion;
     private final String stepFunctionArn;
     private final String dynamodbTable;
+    private final String taskQueue;
 
     public ImageProcessingLambda() {
         System.setProperty("java.awt.headless", "true");
@@ -45,14 +50,16 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         sfnClient = SfnClient.create();
         s3Client = S3Client.create();
         dynamoDbClient = DynamoDbClient.create();
+        sqsClient = SqsClient.create();
         primaryBucket = System.getenv("S3_BUCKET_PRIMARY");
         stepFunctionArn = System.getenv("STEP_FUNCTION_ARN");
         awsRegion = System.getenv("AWS_REGION");
         dynamodbTable = System.getenv("DYNAMODB_TABLE");
+        taskQueue = System.getenv("TASK_QUEUE");
     }
 
     public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
-        System.out.println("Events: " + event.toString());
+        context.getLogger().log("Events: " + event.toString());
         String bucketName = (String) event.get("bucketName");
         String objectKey = (String) event.get("objectKey");
         String email = (String) event.get("email");
@@ -79,6 +86,10 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
         } catch (Exception e) {
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
+            if (retryAttempt == 0) {
+                sendToSQS(fullName, email);
+            }
+
             if (retryAttempt < 3) {
                 System.out.println("Retry attempt: " + retryAttempt);
                 invokeStepFunction(event, retryAttempt);
@@ -87,6 +98,29 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
             throw new RuntimeException("ImageProcessingFailed: " + e.getMessage());
         }
         return response;
+    }
+
+    private void sendToSQS(String fullName, String email) {
+        String subject = "IMAGE UPLOAD FAILED";
+        String htmlMessage = "<html>" +
+                "<body>" +
+                "<h1>Hello" + fullName + "</h1>" +
+                "<p> The file you tried to upload failed</p>" +
+                "</body>" +
+                "</html>";
+
+        Map<String, MessageAttributeValue> attributes = new HashMap<>();
+        attributes.put("owner", MessageAttributeValue.builder().dataType("String").stringValue(email).build());
+        attributes.put("subject", MessageAttributeValue.builder().dataType("String").stringValue(subject).build());
+        attributes.put("workflowType", MessageAttributeValue.builder().dataType("String").stringValue("publishSNS").build());
+
+        SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
+                .queueUrl(taskQueue)
+                .messageBody(htmlMessage)
+                .messageAttributes(attributes)
+                .build();
+
+        sqsClient.sendMessage(sendMessageRequest);
     }
 
     private ResponseInputStream<GetObjectResponse> fetchInputStream(String bucketName, String objectKey) {

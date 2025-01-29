@@ -51,6 +51,12 @@ Resources:
                 - dynamodb:Scan
               Resource:
                 - !GetAtt Table.Arn
+        - Statement:
+            Effect: Allow
+            Action:
+              - cognito-idp:ListUsers
+              - cognito-idp:AdminGetUser
+            Resource: !GetAtt UserPool.Arn
       Timeout: 30
       Events:
         ProxyResource:
@@ -65,6 +71,9 @@ Resources:
           DYNAMODB_TABLE: !Ref Table
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
           TASK_QUEUE: !Ref TaskQueue
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          FRONTEND_DEV_URL: !Ref FrontendDevHost
+          FRONTEND_PROD_URL: !Ref FrontendProdHost
 
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:
@@ -441,6 +450,11 @@ Outputs:
   CognitoLoginURL:
     Description: Cognito User Pool Application Client Hosted Login UI URL
     Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&redirect_uri=${FrontendProdHost}'
+
+  CognitoUserPoolClientInfo:
+    Description: AWS CLI command for Amazon Cognito User Pool information
+    Value: !Sub "aws cognito-idp describe-user-pool-client --user-pool-id ${UserPool} --client-id ${UserPoolClient}"
+
 
   PrimaryS3Bucket:
     Description: Primary s3 bucket

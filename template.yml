@@ -104,6 +104,12 @@ Resources:
               Resource:
                 - !GetAtt StepFunctionStateMachine.Arn
         - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:sendmessage
+              Resource:
+                - !GetAtt TaskQueue.Arn
+        - Statement:
             Effect: Allow
             Action:
               - dynamodb:PutItem

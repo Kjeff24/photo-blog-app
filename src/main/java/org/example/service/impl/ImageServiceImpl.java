@@ -59,7 +59,7 @@ public class ImageServiceImpl implements ImageService {
             validateImageType(mimeType);
 
             String objectKey = String.valueOf(UUID.randomUUID());
-            String fullName = cognitoService.findUserByEmail(userEmail).orElse(userEmail).toUpperCase();
+            String fullName = cognitoService.findUserByEmail(userEmail).orElse(userEmail);
 
             s3Client.putObject(
                     PutObjectRequest.builder()
@@ -74,8 +74,7 @@ public class ImageServiceImpl implements ImageService {
                     "objectKey", objectKey,
                     "bucketName", stagingBucket,
                     "email", userEmail,
-                    "fullName", fullName,
-                    "retryAttempt", String.valueOf(0)
+                    "fullName", fullName
             );
 
             return invokeLambda(lambdaEvent);

@@ -1,6 +1,11 @@
 # Reduce logging level to make sure the application works with SAM local
 # https://github.com/aws/serverless-java-container/issues/134
 logging.level.root: WARN
+spring.security.oauth2.resourceserver.jwt.issuer-uri: https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
+
+app.frontend.uri:
+  dev: ${FRONTEND_DEV_URL}
+  prod: ${FRONTEND_PROD_URL}
 
 aws:
   region: ${AWS_REGION}
@@ -10,4 +15,6 @@ aws:
   dynamodb.table : ${DYNAMODB_TABLE}
   lambda.function:
     image-processing-lambda: ${IMAGE_PROCESSING_LAMBDA}
-  sqs.task: ${TASK_QUEUE}
+  sqs.task:
+  cognito:
+    user-pool-id: ${COGNITO_USER_POOL_ID}

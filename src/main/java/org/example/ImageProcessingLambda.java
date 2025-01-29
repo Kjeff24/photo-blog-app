@@ -64,13 +64,11 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         String objectKey = (String) event.get("objectKey");
         String email = (String) event.get("email");
         String fullName = (String) event.get("fullName");
-        int retryAttempt = event.get("retryAttempt") != null ? Integer.parseInt(event.get("retryAttempt").toString()) + 1 : 0;
-
+        int retryAttempt = event.get("retryAttempt") != null ? Integer.parseInt(event.get("retryAttempt").toString()) + 1 : 1;
 
         Map<String, Object> response;
 
         try {
-
             ResponseInputStream<GetObjectResponse> inputStream = fetchInputStream(bucketName, objectKey);
 
             String mimeType = fetchMimeType(bucketName, objectKey);
@@ -86,15 +84,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
         } catch (Exception e) {
             context.getLogger().log("Error occurred while processing image" + e.getMessage());
-            if (retryAttempt == 0) {
-                sendToSQS(fullName, email);
-            }
-
-            if (retryAttempt < 3) {
-                System.out.println("Retry attempt: " + retryAttempt);
-                invokeStepFunction(event, retryAttempt);
-            }
-
+            handleRetryOrFailure(event, bucketName, objectKey, fullName, email, retryAttempt);
             throw new RuntimeException("ImageProcessingFailed: " + e.getMessage());
         }
         return response;
@@ -102,12 +92,10 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
     private void sendToSQS(String fullName, String email) {
         String subject = "IMAGE UPLOAD FAILED";
-        String htmlMessage = "<html>" +
-                "<body>" +
-                "<h1>Hello" + fullName + "</h1>" +
-                "<p> The file you tried to upload failed</p>" +
-                "</body>" +
-                "</html>";
+        String htmlMessage = "Hi " +
+                fullName +
+                ", " +
+                "\nThe image you tried to upload failed.";
 
         Map<String, MessageAttributeValue> attributes = new HashMap<>();
         attributes.put("owner", MessageAttributeValue.builder().dataType("String").stringValue(email).build());
@@ -170,7 +158,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         Color fontColor = getWatermarkColor(backgroundColor);
 
         graphics.setColor(fontColor);
-        graphics.drawString(fullName, x, y);
+        graphics.drawString(fullName.toUpperCase(), x, y);
         graphics.dispose();
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -227,6 +215,20 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
                 .bucket(bucketName)
                 .key(objectKey)
                 .build());
+    }
+
+    private void handleRetryOrFailure(Map<String, Object> event, String bucketName, String objectKey, String fullName, String email, int retryAttempt) {
+        if (retryAttempt == 1) {
+            sendToSQS(fullName, email);
+        }
+
+        if (retryAttempt <= 2) {
+            invokeStepFunction(event, retryAttempt);
+        }
+
+        if (retryAttempt == 3) {
+            deleteOriginalImage(bucketName, objectKey);
+        }
     }
 
     private void invokeStepFunction(Map<String, Object> events, int retryAttempt) {

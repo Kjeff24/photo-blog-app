@@ -8,6 +8,7 @@ import org.example.exception.CustomNotFoundException;
 import org.example.model.BlogPost;
 import org.example.repository.BlogRepository;
 import org.example.service.ImageService;
+import org.example.service.SqsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cglib.core.Local;
 import org.springframework.stereotype.Service;

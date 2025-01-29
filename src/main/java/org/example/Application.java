@@ -1,6 +1,6 @@
 package org.example;
 
-import org.example.controller.ImageController;
+import org.example.controller.BlogController;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Import;
@@ -11,7 +11,7 @@ import org.example.controller.PingController;
 @SpringBootApplication
 // We use direct @Import instead of @ComponentScan to speed up cold starts
 // @ComponentScan(basePackages = "org.example.controller")
-@Import({ PingController.class, ImageController.class })
+@Import({ PingController.class, BlogController.class })
 public class Application {
 
     public static void main(String[] args) {

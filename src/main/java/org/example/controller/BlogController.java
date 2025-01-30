@@ -47,8 +47,9 @@ public class BlogController {
 
     @PostMapping("/generate-url/{objectKey}")
     @ResponseStatus(HttpStatus.OK)
-    public BlogPost generatePreSignedUrl(@PathVariable("objectKey") String objectKey) {
-        return imageService.generatePreSignedUrl(objectKey);
+    public BlogPost generatePreSignedUrl(@PathVariable("objectKey") String objectKey, @AuthenticationPrincipal Jwt jwt) {
+        String userEmail = jwt.getClaimAsString("email");
+        return imageService.generatePreSignedUrl(objectKey, userEmail);
     }
 
 

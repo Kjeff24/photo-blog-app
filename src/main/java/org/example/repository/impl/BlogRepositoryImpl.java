@@ -5,7 +5,11 @@ import org.example.model.BlogPost;
 import org.example.repository.BlogRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.enhanced.dynamodb.*;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Key;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 

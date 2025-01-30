@@ -1,7 +1,6 @@
 package org.example.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.example.model.BlogPost;
 import org.example.service.SqsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

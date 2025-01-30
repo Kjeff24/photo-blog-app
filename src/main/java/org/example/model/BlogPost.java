@@ -1,10 +1,15 @@
 package org.example.model;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
 
 @DynamoDbBean
@@ -26,6 +31,7 @@ public class BlogPost {
         return photoId;
     }
 
+    @DynamoDbSortKey
     @DynamoDbAttribute(value = "owner")
     @DynamoDbSecondaryPartitionKey(indexNames = "OwnerIndex")
     public String getOwner() {

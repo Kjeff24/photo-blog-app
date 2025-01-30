@@ -49,8 +49,10 @@ Resources:
                 - dynamodb:GetItem
                 - dynamodb:Query
                 - dynamodb:Scan
+                - dynamodb:DeleteItem
               Resource:
                 - !GetAtt Table.Arn
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}/index/*
         - Statement:
             Effect: Allow
             Action:

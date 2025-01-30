@@ -83,8 +83,9 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    public BlogPost generatePreSignedUrl(String objectKey) {
-        BlogPost blogPost = blogRepository.findByPhotoId(objectKey).orElseThrow(() -> new CustomNotFoundException("Photo not found"));
+    public BlogPost generatePreSignedUrl(String objectKey, String userEmail) {
+        BlogPost blogPost = blogRepository.findByPhotoId(objectKey, userEmail).orElseThrow(() -> new CustomNotFoundException("Photo not found"));
+
         if(LocalDateTime.now().isBefore(LocalDateTime.parse(blogPost.getUploadDate()))) {
             throw new CustomBadRequestException("Temporary Image Url hasn't expired");
         }

@@ -7,6 +7,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 public interface ImageService {;
     BlogPost uploadImage(ImageUploadRequest imageUploadRequest, String userEmail);
 
-    BlogPost generatePreSignedUrl(String objectKey);
+    BlogPost generatePreSignedUrl(String objectKey, String userEmail);
 
 }

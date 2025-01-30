@@ -9,10 +9,7 @@ import org.example.model.BlogPost;
 import org.example.repository.BlogRepository;
 import org.example.service.CognitoService;
 import org.example.service.ImageService;
-import org.example.service.SqsService;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cglib.core.Local;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -84,7 +81,7 @@ public class ImageServiceImpl implements ImageService {
     }
 
     public BlogPost generatePreSignedUrl(String objectKey, String userEmail) {
-        BlogPost blogPost = blogRepository.findByPhotoId(objectKey, userEmail).orElseThrow(() -> new CustomNotFoundException("Photo not found"));
+        BlogPost blogPost = blogRepository.findByPhotoIdAndOwner(objectKey, userEmail).orElseThrow(() -> new CustomNotFoundException("Photo not found"));
 
         if(LocalDateTime.now().isBefore(LocalDateTime.parse(blogPost.getUploadDate()))) {
             throw new CustomBadRequestException("Temporary Image Url hasn't expired");

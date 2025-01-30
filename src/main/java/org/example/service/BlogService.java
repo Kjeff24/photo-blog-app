@@ -10,4 +10,5 @@ public interface BlogService {
     List<BlogPost> findAllBlogPostByUser(String userEmail);
 
     void deleteBlogPost(String photoId, String userEmail);
+
 }

@@ -8,7 +8,7 @@ import java.util.Optional;
 public interface BlogRepository {
     void save(BlogPost metadata);
 
-    Optional<BlogPost> findByPhotoId(String photoId, String owner);
+    Optional<BlogPost> findByPhotoIdAndOwner(String photoId, String owner);
 
     List<BlogPost> findAll();
 

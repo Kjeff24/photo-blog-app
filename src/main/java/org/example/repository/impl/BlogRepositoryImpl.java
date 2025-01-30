@@ -32,7 +32,7 @@ public class BlogRepositoryImpl implements BlogRepository {
         getTable().putItem(metadata);
     }
 
-    public Optional<BlogPost> findByPhotoId(String photoId, String owner) {
+    public Optional<BlogPost> findByPhotoIdAndOwner(String photoId, String owner) {
         Key key = getKey(photoId, owner);
         return Optional.ofNullable(getTable().getItem(r -> r.key(key)));
     }
@@ -55,7 +55,7 @@ public class BlogRepositoryImpl implements BlogRepository {
     }
 
     public boolean deleteBlogPost(String photoId, String owner) {
-        Optional<BlogPost> blogPost = findByPhotoId(photoId, owner);
+        Optional<BlogPost> blogPost = findByPhotoIdAndOwner(photoId, owner);
 
         if (blogPost.isEmpty()) {
             return false;

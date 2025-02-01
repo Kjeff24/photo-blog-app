@@ -195,7 +195,9 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
                         "owner", AttributeValue.builder().s(email).build(),
                         "fullName", AttributeValue.builder().s(fullName).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
-                        "uploadDate", AttributeValue.builder().s(uploadDate).build()))
+                        "uploadDate", AttributeValue.builder().s(uploadDate).build(),
+                        "deleteStatus", AttributeValue.builder().n("0").build())
+                )
                 .build();
 
         dynamoDbClient.putItem(putItemRequest);

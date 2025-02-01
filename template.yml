@@ -191,6 +191,32 @@ Resources:
             UserPool: !Ref UserPool
             Trigger: PostConfirmation
 
+  # Lambda Function for creating recycle bin folder
+  CloudFormationCustomResourceLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-CloudFormationCustomResourceLambda
+      Handler: org.example.MyStackCompletionLambda::handleRequest
+      Runtime: java21
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 30
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource: !GetAtt PrimaryBucket.Arn
+
+  # Custom resource to perform actions during stack update, creation or deletion
+  MyCustomResource:
+    Type: Custom::MyCustomResource
+    Properties:
+      ServiceToken: !GetAtt CloudFormationCustomResourceLambda.Arn
+      ServiceTimeout: 30
+      S3_BUCKET_PRIMARY: !Ref PrimaryBucket
+
   # Staging s3 bucket
   StagingBucket:
     Type: AWS::S3::Bucket

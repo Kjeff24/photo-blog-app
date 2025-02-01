@@ -89,6 +89,21 @@ public class BlogRepositoryImpl implements BlogRepository {
         }
     }
 
+    public List<BlogPost> findAllByUserAndDeleteStatus(String owner, int i) {
+        DynamoDbIndex<BlogPost> index = getTable().index("OwnerIndex");
+        return index.query(r -> r.queryConditional(
+                                QueryConditional.keyEqualTo(k -> k.partitionValue(owner)))
+                        .filterExpression(Expression.builder()
+                                .expression("deleteStatus = :deletedStatus")
+                                .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
+                                .build()))
+                .stream()
+                .map(Page::items)
+                .flatMap(List::stream)
+                .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
     private Key getKey(String photoId, String owner) {
         return Key.builder()
                 .partitionValue(photoId)

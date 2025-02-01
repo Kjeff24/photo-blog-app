@@ -12,9 +12,11 @@ public interface BlogRepository {
 
     List<BlogPost> findAll();
 
-    List<BlogPost> findAllByUserEmail(String userEmail);
+    List<BlogPost> findAllByUserEmail(String owner);
 
-    boolean deleteBlogPost(String photoId, String userEmail);
+    boolean deleteBlogPost(String photoId, String owner);
 
-    void updateDeleteStatus(String photoId, String userEmail, int i);
+    void updateDeleteStatus(String photoId, String owner, int i);
+
+    List<BlogPost> findAllByUserAndDeleteStatus(String owner, int i);
 }

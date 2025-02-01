@@ -8,13 +8,16 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -42,7 +45,11 @@ public class BlogRepositoryImpl implements BlogRepository {
     }
 
     public List<BlogPost> findAll() {
-        return getTable().scan().items().stream()
+        return getTable().scan(r -> r.filterExpression(Expression.builder()
+                        .expression("deleteStatus <> :deletedStatus")
+                        .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
+                        .build()))
+                .items().stream()
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
     }
@@ -50,7 +57,11 @@ public class BlogRepositoryImpl implements BlogRepository {
     public List<BlogPost> findAllByUserEmail(String userEmail) {
         DynamoDbIndex<BlogPost> index = getTable().index("OwnerIndex");
         return index.query(r -> r.queryConditional(
-                        QueryConditional.keyEqualTo(k -> k.partitionValue(userEmail))))
+                                QueryConditional.keyEqualTo(k -> k.partitionValue(userEmail)))
+                        .filterExpression(Expression.builder()
+                                .expression("deleteStatus <> :deletedStatus")
+                                .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
+                                .build()))
                 .stream()
                 .map(Page::items)
                 .flatMap(List::stream)
@@ -72,7 +83,10 @@ public class BlogRepositoryImpl implements BlogRepository {
     public void updateDeleteStatus(String photoId, String owner, int i) {
         Optional<BlogPost> blogPost = findByPhotoIdAndOwner(photoId, owner);
 
-        blogPost.ifPresent(post -> post.setDeleteStatus(i));
+        if(blogPost.isPresent()) {
+            blogPost.get().setDeleteStatus(i);
+            save(blogPost.get());
+        }
     }
 
     private Key getKey(String photoId, String owner) {

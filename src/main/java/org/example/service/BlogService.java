@@ -13,4 +13,5 @@ public interface BlogService {
 
     void moveToRecycleBin(String photoId, String userEmail);
 
+    List<BlogPost> findAllRecycleBlogPost(String userEmail);
 }

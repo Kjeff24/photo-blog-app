@@ -41,4 +41,8 @@ public class BlogServiceImpl implements BlogService {
             throw new CustomBadRequestException("Failed to move to recycle bin");
         }
     }
+
+    public List<BlogPost> findAllRecycleBlogPost(String userEmail) {
+        return blogRepository.findAllByUserAndDeleteStatus(userEmail, 1);
+    }
 }

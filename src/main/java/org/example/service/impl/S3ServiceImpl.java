@@ -51,8 +51,6 @@ public class S3ServiceImpl implements S3Service {
     private String primaryBucket;
     @Value("${aws.lambda.function.image-processing-lambda}")
     private String imageProcessingLambda;
-    @Value("${aws.s3.bucket.recycle-bin}")
-    private String recycleBin;
 
     public BlogPost uploadImage(ImageUploadRequest request, String userEmail) {
         try {
@@ -103,13 +101,11 @@ public class S3ServiceImpl implements S3Service {
                 .build();
     }
 
-    public void moveToRecycleBin(String objectKey) {
+    public void moveObject(String sourceKey, String destinationKey) {
         try {
-            String destinationKey = recycleBin + objectKey;
-
             CopyObjectRequest copyRequest = CopyObjectRequest.builder()
                     .sourceBucket(primaryBucket)
-                    .sourceKey(objectKey)
+                    .sourceKey(sourceKey)
                     .destinationBucket(primaryBucket)
                     .destinationKey(destinationKey)
                     .build();
@@ -130,21 +126,6 @@ public class S3ServiceImpl implements S3Service {
             throw new CustomBadRequestException("Failed to move object");
         }
     }
-
-    public void deleteFromRecycleBin(String objectKey) {
-        String recycleBinKey = recycleBin + objectKey;
-
-        try {
-            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
-                    .bucket(primaryBucket)
-                    .key(recycleBinKey)
-                    .build();
-            s3Client.deleteObject(deleteRequest);
-        } catch (S3Exception e) {
-            throw new CustomBadRequestException("Failed to delete object from recycle bin");
-        }
-    }
-
 
     private BlogPost invokeLambda(Map<String, String> lambdaEvent) {
 

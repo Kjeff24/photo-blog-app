@@ -25,7 +25,7 @@ public class BlogServiceImpl implements BlogService {
     }
 
     public void deleteBlogPost(String photoId, String userEmail) {
-        s3Service.deleteObject(photoId);
+        s3Service.deleteFromRecycleBin(photoId);
         boolean isDeleted = blogRepository.deleteBlogPost(photoId, userEmail);
         if (!isDeleted) {
             throw new CustomBadRequestException("Blog post doest not exits");

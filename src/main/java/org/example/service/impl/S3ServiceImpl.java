@@ -44,7 +44,6 @@ public class S3ServiceImpl implements S3Service {
     private final S3Client s3Client;
     private final LambdaClient lambdaClient;
     private final S3Presigner s3Presigner;
-    private final BlogRepository blogRepository;
     private final CognitoService cognitoService;
     @Value("${aws.s3.bucket.staging}")
     private String stagingBucket;
@@ -132,6 +131,20 @@ public class S3ServiceImpl implements S3Service {
         }
     }
 
+    public void deleteFromRecycleBin(String objectKey) {
+        String recycleBinKey = recycleBin + objectKey;
+
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(primaryBucket)
+                    .key(recycleBinKey)
+                    .build();
+            s3Client.deleteObject(deleteRequest);
+        } catch (S3Exception e) {
+            throw new CustomBadRequestException("Failed to delete object from recycle bin");
+        }
+    }
+
 
     private BlogPost invokeLambda(Map<String, String> lambdaEvent) {
 
@@ -145,7 +158,6 @@ public class S3ServiceImpl implements S3Service {
         InvokeResponse invokeResult = lambdaClient.invoke(invokeRequest);
 
         String responsePayload = invokeResult.payload().asUtf8String();
-        System.out.println("Lambda invocation response: " + responsePayload);
         if (invokeResult.functionError() != null && !invokeResult.functionError().isEmpty()) {
             throw new CustomBadRequestException();
         }

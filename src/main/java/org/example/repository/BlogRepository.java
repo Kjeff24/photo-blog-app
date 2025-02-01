@@ -15,4 +15,6 @@ public interface BlogRepository {
     List<BlogPost> findAllByUserEmail(String userEmail);
 
     boolean deleteBlogPost(String photoId, String userEmail);
+
+    void updateDeleteStatus(String photoId, String userEmail, int i);
 }

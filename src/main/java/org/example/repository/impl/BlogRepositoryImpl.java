@@ -69,6 +69,12 @@ public class BlogRepositoryImpl implements BlogRepository {
         return true;
     }
 
+    public void updateDeleteStatus(String photoId, String owner, int i) {
+        Optional<BlogPost> blogPost = findByPhotoIdAndOwner(photoId, owner);
+
+        blogPost.ifPresent(post -> post.setDeleteStatus(i));
+    }
+
     private Key getKey(String photoId, String owner) {
         return Key.builder()
                 .partitionValue(photoId)

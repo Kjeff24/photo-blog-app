@@ -11,4 +11,6 @@ public interface BlogService {
 
     void deleteBlogPost(String photoId, String userEmail);
 
+    void moveToRecycleBin(String photoId, String userEmail);
+
 }

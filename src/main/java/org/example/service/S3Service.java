@@ -12,4 +12,6 @@ public interface S3Service {;
     void moveToRecycleBin(String objectKey);
 
     void deleteObject(String objectKey);
+
+    void deleteFromRecycleBin(String objectKey);
 }

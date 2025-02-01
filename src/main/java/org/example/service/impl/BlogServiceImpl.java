@@ -46,7 +46,7 @@ public class BlogServiceImpl implements BlogService {
                 // Move to recycle bin
                 String destinationKey = recycleBin + photoId;
                 s3Service.moveObject(photoId, destinationKey);
-                s3Service.deleteObject(destinationKey);
+                s3Service.deleteObject(photoId);
                 blogRepository.updateDeleteStatus(photoId, userEmail, 1);
             } else {
                 // Restore from recycle bin

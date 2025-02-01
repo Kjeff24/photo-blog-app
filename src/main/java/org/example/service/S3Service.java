@@ -9,9 +9,8 @@ public interface S3Service {;
 
     PreSignedUrlResponse generatePreSignedUrl(String objectKey, String userEmail);
 
-    void moveToRecycleBin(String objectKey);
+    void moveObject(String sourceKey, String destinationKey);
 
     void deleteObject(String objectKey);
 
-    void deleteFromRecycleBin(String objectKey);
 }

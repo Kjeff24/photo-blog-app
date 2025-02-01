@@ -6,6 +6,7 @@ import org.example.model.BlogPost;
 import org.example.repository.BlogRepository;
 import org.example.service.BlogService;
 import org.example.service.S3Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +16,8 @@ import java.util.List;
 public class BlogServiceImpl implements BlogService {
     private final BlogRepository blogRepository;
     private final S3Service s3Service;
+    @Value("${aws.s3.bucket.recycle-bin}")
+    private String recycleBin;
 
     public List<BlogPost> findAllBlogPost() {
         return blogRepository.findAll();
@@ -25,24 +28,33 @@ public class BlogServiceImpl implements BlogService {
     }
 
     public void deleteBlogPost(String photoId, String userEmail) {
-        s3Service.deleteFromRecycleBin(photoId);
+        String objectKey = recycleBin + photoId;
+        s3Service.deleteObject(objectKey);
         boolean isDeleted = blogRepository.deleteBlogPost(photoId, userEmail);
         if (!isDeleted) {
             throw new CustomBadRequestException("Blog post doest not exits");
         }
     }
 
-    public void moveToRecycleBin(String photoId, String userEmail) {
-        try {
-            s3Service.moveToRecycleBin(photoId);
-            s3Service.deleteObject(photoId);
-            blogRepository.updateDeleteStatus(photoId, userEmail, 1);
-        } catch (Exception e) {
-            throw new CustomBadRequestException("Failed to move to recycle bin");
-        }
-    }
-
     public List<BlogPost> findAllRecycleBlogPost(String userEmail) {
         return blogRepository.findAllByUserAndDeleteStatus(userEmail, 1);
+    }
+
+    public void moveToOrRestoreFromRecycleBin(String photoId, String userEmail, boolean isMoveToRecycleBin) {
+        try {
+            if (isMoveToRecycleBin) {
+                // Move to recycle bin
+                String destinationKey = recycleBin + photoId;
+                s3Service.moveObject(photoId, destinationKey);
+                blogRepository.updateDeleteStatus(photoId, userEmail, 1);
+            } else {
+                // Restore from recycle bin
+                String sourceKey = recycleBin + photoId;
+                s3Service.moveObject(sourceKey, photoId);
+                blogRepository.updateDeleteStatus(photoId, userEmail, 0);
+            }
+        } catch (Exception e) {
+            throw new CustomBadRequestException(isMoveToRecycleBin ? "Failed to move to recycle bin" : "Failed to restore from recycle bin");
+        }
     }
 }

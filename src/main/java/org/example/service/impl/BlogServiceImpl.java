@@ -41,7 +41,6 @@ public class BlogServiceImpl implements BlogService {
     }
 
     public void moveToOrRestoreFromRecycleBin(String photoId, String userEmail, boolean isMoveToRecycleBin) {
-        System.out.println("photoId: " + photoId + " userEmail: " + userEmail + " isMoveToRecycleBin: " + isMoveToRecycleBin);
         try {
             if (isMoveToRecycleBin) {
                 // Move to recycle bin

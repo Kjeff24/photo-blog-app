@@ -14,6 +14,10 @@ Parameters:
     Type: String
     Default: "http://localhost:4200"
     Description: The localhost of my frontend
+  RecycleBin:
+    Type: String
+    Default: "recycle-bin/"
+    Description: Recycle bin directory for primary s3, ensure it ends with a forward slash
 
 Resources:
   ## Lambda function for API-GATEWAY
@@ -76,6 +80,7 @@ Resources:
           COGNITO_USER_POOL_ID: !Ref UserPool
           FRONTEND_DEV_URL: !Ref FrontendDevHost
           FRONTEND_PROD_URL: !Ref FrontendProdHost
+          RECYCLE_BIN: !Ref RecycleBin
 
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:
@@ -216,6 +221,7 @@ Resources:
       ServiceToken: !GetAtt CloudFormationCustomResourceLambda.Arn
       ServiceTimeout: 30
       S3_BUCKET_PRIMARY: !Ref PrimaryBucket
+      RECYCLE_BIN: !Ref RecycleBin
 
   # Staging s3 bucket
   StagingBucket:

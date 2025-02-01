@@ -12,6 +12,7 @@ aws:
   s3.bucket:
     staging: ${S3_BUCKET_STAGING}
     primary: ${S3_BUCKET_PRIMARY}
+    recycle-bin: ${RECYCLE_BIN}
   dynamodb.table : ${DYNAMODB_TABLE}
   lambda.function:
     image-processing-lambda: ${IMAGE_PROCESSING_LAMBDA}

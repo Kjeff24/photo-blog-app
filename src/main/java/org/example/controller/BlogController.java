@@ -61,6 +61,14 @@ public class BlogController {
         return blogService.findAllBlogPostByUser(userEmail);
     }
 
+    @GetMapping("/user/recycle")
+    @ResponseStatus(HttpStatus.OK)
+    public List<BlogPost> getRecycleBlogPostByUser(@AuthenticationPrincipal Jwt jwt) {
+        String userEmail = jwt.getClaimAsString("email");
+        return blogService.findAllRecycleBlogPost(userEmail);
+    }
+
+
     @DeleteMapping("/delete/{photoId}")
     @ResponseStatus(HttpStatus.OK)
     public void deletePost(@PathVariable("photoId") String photoId, @AuthenticationPrincipal Jwt jwt) {

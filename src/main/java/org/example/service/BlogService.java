@@ -11,7 +11,7 @@ public interface BlogService {
 
     void deleteBlogPost(String photoId, String userEmail);
 
-    void moveToRecycleBin(String photoId, String userEmail);
+    void moveToOrRestoreFromRecycleBin(String photoId, String userEmail, boolean isMoveToRecycleBin);
 
     List<BlogPost> findAllRecycleBlogPost(String userEmail);
 }

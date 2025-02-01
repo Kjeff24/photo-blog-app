@@ -36,6 +36,7 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
+              - s3:CopyObject
             Resource:
               - !GetAtt PrimaryBucket.Arn
               - !GetAtt StagingBucket.Arn

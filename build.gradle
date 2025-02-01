@@ -23,12 +23,12 @@ dependencies {
           'software.amazon.awssdk:sqs:2.30.2',
           'software.amazon.awssdk:sns:2.30.2',
           'com.google.code.gson:gson:2.11.0',
+          'org.apache.httpcomponents.client5:httpclient5:5.4.1'
   )
 
   compileOnly 'org.projectlombok:lombok:1.18.36'
   annotationProcessor 'org.projectlombok:lombok:1.18.36'
   testImplementation("com.amazonaws.serverless:aws-serverless-java-container-core:[2.0-SNAPSHOT,):tests")
-  testImplementation("org.apache.httpcomponents.client5:httpclient5:5.4.1")
   testImplementation(platform("org.junit:junit-bom:5.11.3"))
   testImplementation("org.junit.jupiter:junit-jupiter")
 }

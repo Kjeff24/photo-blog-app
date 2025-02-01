@@ -30,7 +30,10 @@ public class CloudFormationCustomResourceLambda implements RequestHandler<CloudF
         String status = "SUCCESS";
         Map<String, Object> responseData = new HashMap<>();
         try {
-
+            if ("Delete".equalsIgnoreCase(event.getRequestType())) {
+                sendResponse(responseUrl, event, context, status, responseData);
+                return null;
+            }
             String primaryBucket = event.getResourceProperties().get("S3_BUCKET_PRIMARY").toString();
             String folderName = event.getResourceProperties().get("RECYCLE_BIN").toString();
 

@@ -23,8 +23,8 @@ public class BlogPost {
     private String owner;
     private String fullName;
     private String imageUrl;
-    private String temporaryImageUrl;
     private String uploadDate;
+    private int deleteStatus;
 
     @DynamoDbPartitionKey
     public String getPhotoId() {
@@ -48,13 +48,13 @@ public class BlogPost {
         return imageUrl;
     }
 
-    @DynamoDbAttribute(value = "temporaryImageUrl")
-    public String getTemporaryImageUrl() {
-        return temporaryImageUrl;
-    }
-
     @DynamoDbAttribute(value = "uploadDate")
     public String getUploadDate() {
         return uploadDate;
+    }
+
+    @DynamoDbAttribute(value = "deleteStatus")
+    public int getDeleteStatus() {
+        return deleteStatus;
     }
 }

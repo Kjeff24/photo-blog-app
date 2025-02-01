@@ -32,7 +32,7 @@ public class CloudFormationCustomResourceLambda implements RequestHandler<CloudF
         try {
 
             String primaryBucket = event.getResourceProperties().get("S3_BUCKET_PRIMARY").toString();
-            String folderName = "recycle-bin/";
+            String folderName = event.getResourceProperties().get("RECYCLE_BIN").toString();
 
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(primaryBucket)

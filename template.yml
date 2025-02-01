@@ -196,7 +196,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-CloudFormationCustomResourceLambda
-      Handler: org.example.MyStackCompletionLambda::handleRequest
+      Handler: org.example.CloudFormationCustomResourceLambda::handleRequest
       Runtime: java21
       CodeUri: .
       MemorySize: 512

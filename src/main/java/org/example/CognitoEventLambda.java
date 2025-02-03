@@ -46,10 +46,43 @@ public class CognitoEventLambda implements RequestHandler<Map<String, Object>, M
             } else if ("PostConfirmation_ConfirmSignUp".equals(triggerSource)) {
                 CognitoUserPoolPostConfirmationEvent postConfirmationEvent = objectMapper.convertValue(event, CognitoUserPoolPostConfirmationEvent.class);
                 subscribeUserToSNS(postConfirmationEvent);
+            } else if ("TokenGeneration_HostedAuth".equals(triggerSource)) {
+                CognitoUserPoolPreTokenGenerationEventV2 preTokenEvent = objectMapper.convertValue(event, CognitoUserPoolPreTokenGenerationEventV2.class);
+                return objectMapper.convertValue(modifyToken(preTokenEvent), new TypeReference<>() {
+                });
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        return event;
+    }
+
+    private CognitoUserPoolPreTokenGenerationEventV2 modifyToken(CognitoUserPoolPreTokenGenerationEventV2 event) {
+        System.out.println("CognitoUserPoolPreTokenGenerationEventV2: " + event);
+        Map<String, String> userAttributes = event.getRequest().getUserAttributes();
+
+        if (userAttributes != null && userAttributes.containsKey("name")) {
+            String name = userAttributes.get("name");
+            Map<String, String> claimsToAddOrOverride = new HashMap<>();
+            claimsToAddOrOverride.put("name", name);
+
+            if (event.getResponse() == null) {
+                event.setResponse(new CognitoUserPoolPreTokenGenerationEventV2.Response());
+            }
+
+            if (event.getResponse().getClaimsAndScopeOverrideDetails() == null) {
+                event.getResponse().setClaimsAndScopeOverrideDetails(new CognitoUserPoolPreTokenGenerationEventV2.ClaimsAndScopeOverrideDetails());
+            }
+
+            if (event.getResponse().getClaimsAndScopeOverrideDetails().getIdTokenGeneration() == null) {
+                event.getResponse().getClaimsAndScopeOverrideDetails().setIdTokenGeneration(
+                        new CognitoUserPoolPreTokenGenerationEventV2.IdTokenGeneration()
+                );
+            }
+
+            event.getResponse().getClaimsAndScopeOverrideDetails().getIdTokenGeneration().setClaimsToAddOrOverride(claimsToAddOrOverride);
+        }
+
         return event;
     }
 

@@ -43,12 +43,16 @@ public class CognitoEventLambda implements RequestHandler<Map<String, Object>, M
             if ("PostAuthentication_Authentication".equals(triggerSource)) {
                 CognitoUserPoolPostAuthenticationEvent authEvent = objectMapper.convertValue(event, CognitoUserPoolPostAuthenticationEvent.class);
                 sendLoginNotification(authEvent);
+            } else if ("PostConfirmation_ConfirmSignUp".equals(triggerSource)) {
+                CognitoUserPoolPostConfirmationEvent postConfirmationEvent = objectMapper.convertValue(event, CognitoUserPoolPostConfirmationEvent.class);
+                subscribeUserToSNS(postConfirmationEvent);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         return event;
     }
+
 
     private void sendLoginNotification(CognitoUserPoolPostAuthenticationEvent event) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
@@ -68,6 +72,17 @@ public class CognitoEventLambda implements RequestHandler<Map<String, Object>, M
                 .build();
 
         sqsClient.sendMessage(sendMessageRequest);
+    }
+
+    private void subscribeUserToSNS(CognitoUserPoolPostConfirmationEvent event) {
+        String userEmail = event.getRequest().getUserAttributes().get("email");
+        SubscribeRequest request = SubscribeRequest.builder()
+                .topicArn(topicArn)
+                .protocol("email")
+                .endpoint(userEmail)
+                .build();
+
+        snsClient.subscribe(request);
     }
 
 }

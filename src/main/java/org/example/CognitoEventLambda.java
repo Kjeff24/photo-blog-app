@@ -2,33 +2,72 @@ package org.example;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.events.CognitoUserPoolPostAuthenticationEvent;
 import com.amazonaws.services.lambda.runtime.events.CognitoUserPoolPostConfirmationEvent;
+import com.amazonaws.services.lambda.runtime.events.CognitoUserPoolPreTokenGenerationEventV2;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.SubscribeRequest;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
-public class CognitoPostConfirmationLambda implements RequestHandler<CognitoUserPoolPostConfirmationEvent, CognitoUserPoolPostConfirmationEvent> {
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
+
+public class CognitoEventLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
     private final String topicArn;
+    private final String taskQueue;
     private final SnsClient snsClient;
+    private final SqsClient sqsClient;
+    private final ObjectMapper objectMapper;
 
-    public CognitoPostConfirmationLambda() {
+    public CognitoEventLambda() {
         snsClient = SnsClient.create();
+        sqsClient = SqsClient.create();
         topicArn = System.getenv("NOTIFICATION_TOPIC_ARN");
+        taskQueue = System.getenv("TASK_QUEUE");
+        objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     @Override
-    public CognitoUserPoolPostConfirmationEvent handleRequest(CognitoUserPoolPostConfirmationEvent cognitoUserPoolPostConfirmationEvent, Context context) {
-        String userEmail = cognitoUserPoolPostConfirmationEvent.getRequest().getUserAttributes().get("email");
+    public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
+        context.getLogger().log("Event: " + event);
+        String triggerSource = (String) event.get("triggerSource");
 
-        cognitoUserPoolPostConfirmationEvent.getTriggerSource()
+        try {
+            if ("PostAuthentication_Authentication".equals(triggerSource)) {
+                CognitoUserPoolPostAuthenticationEvent authEvent = objectMapper.convertValue(event, CognitoUserPoolPostAuthenticationEvent.class);
+                sendLoginNotification(authEvent);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return event;
+    }
 
-        SubscribeRequest request = SubscribeRequest.builder()
-                .topicArn(topicArn)
-                .protocol("email")
-                .endpoint(userEmail)
+    private void sendLoginNotification(CognitoUserPoolPostAuthenticationEvent event) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
+        String userEmail = event.getRequest().getUserAttributes().get("email");
+        String subject = "LOGIN ALERT";
+        String message = "A login was detected for your account on " + LocalDateTime.now().format(formatter);
+
+        Map<String, MessageAttributeValue> attributes = new HashMap<>();
+        attributes.put("email", MessageAttributeValue.builder().dataType("String").stringValue(userEmail).build());
+        attributes.put("subject", MessageAttributeValue.builder().dataType("String").stringValue(subject).build());
+        attributes.put("workflowType", MessageAttributeValue.builder().dataType("String").stringValue("publishSNS").build());
+
+        SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
+                .queueUrl(taskQueue)
+                .messageBody(message)
+                .messageAttributes(attributes)
                 .build();
 
-        snsClient.subscribe(request);
-
-        return cognitoUserPoolPostConfirmationEvent;
+        sqsClient.sendMessage(sendMessageRequest);
     }
+
 }

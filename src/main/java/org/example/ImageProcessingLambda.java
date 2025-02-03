@@ -92,19 +92,19 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
     private void sendToSQS(String fullName, String email) {
         String subject = "IMAGE UPLOAD FAILED";
-        String htmlMessage = "Hi " +
+        String message = "Hi " +
                 fullName +
                 ", " +
                 "\nThe image you tried to upload failed.";
 
         Map<String, MessageAttributeValue> attributes = new HashMap<>();
-        attributes.put("owner", MessageAttributeValue.builder().dataType("String").stringValue(email).build());
+        attributes.put("email", MessageAttributeValue.builder().dataType("String").stringValue(email).build());
         attributes.put("subject", MessageAttributeValue.builder().dataType("String").stringValue(subject).build());
         attributes.put("workflowType", MessageAttributeValue.builder().dataType("String").stringValue("publishSNS").build());
 
         SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
                 .queueUrl(taskQueue)
-                .messageBody(htmlMessage)
+                .messageBody(message)
                 .messageAttributes(attributes)
                 .build();
 

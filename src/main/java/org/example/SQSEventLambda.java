@@ -41,7 +41,7 @@ public class SQSEventLambda implements RequestHandler<SQSEvent, Void> {
     private void handlePublishSNS(SQSEvent.SQSMessage message, Context context) {
         context.getLogger().log("Processing PublishToSNS event: " + message);
 
-        String userEmail = message.getMessageAttributes().get("owner").getStringValue();
+        String userEmail = message.getMessageAttributes().get("email").getStringValue();
         String subject = message.getMessageAttributes().get("subject").getStringValue();
         String messageBody = message.getBody();
 

@@ -170,11 +170,11 @@ Resources:
             BatchSize: 5
 
   # Lambda Function to send sns subscription after signup
-  CognitoPostConfirmationLambda:
+  CognitoEventLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub ${AWS::StackName}-CognitoPostConfirmationLambda
-      Handler: org.example.CognitoPostConfirmationLambda::handleRequest
+      FunctionName: !Sub ${AWS::StackName}-CognitoEventLambda
+      Handler: org.example.CognitoEventLambda::handleRequest
       Runtime: java21
       CodeUri: .
       MemorySize: 512
@@ -187,15 +187,17 @@ Resources:
               - sns:Subscribe
             Resource:
               - !Ref NotificationTopic
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:sendmessage
+              Resource:
+                - !GetAtt TaskQueue.Arn
       Environment:
         Variables:
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopic
-      Events:
-        CognitoPostConfirmationEvent:
-          Type: Cognito
-          Properties:
-            UserPool: !Ref UserPool
-            Trigger: PostConfirmation
+          TASK_QUEUE: !Ref TaskQueue
+
 
   # Lambda Function for creating recycle bin folder
   CloudFormationCustomResourceLambda:
@@ -278,6 +280,13 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           TemporaryPasswordValidityDays: 7
+      LambdaConfig:
+        PreTokenGeneration: !GetAtt CognitoEventLambda.Arn
+        PostConfirmation: !GetAtt CognitoEventLambda.Arn
+        PostAuthentication: !GetAtt CognitoEventLambda.Arn
+        PreTokenGenerationConfig:
+          LambdaArn: !GetAtt CognitoEventLambda.Arn
+          LambdaVersion: 'V2_0'
 
   # Cognito User Pool Client
   UserPoolClient:
@@ -469,6 +478,17 @@ Resources:
                   - lambda:InvokeFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ImageProcessingLambda
+
+  # Permissions
+
+  # Permission for cognito to invoke lambda
+  CognitoEventLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt CognitoEventLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
 
 
 Outputs:

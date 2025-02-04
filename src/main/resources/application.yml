@@ -3,16 +3,16 @@
 logging.level.root: WARN
 spring.security.oauth2.resourceserver.jwt.issuer-uri: https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
 
-app.frontend.uri:
-  dev: ${FRONTEND_DEV_URL}
-  prod: ${FRONTEND_PROD_URL}
+app:
+  frontend.uri:
+    dev: ${FRONTEND_DEV_URL}
+    prod: ${FRONTEND_PROD_URL}
 
 aws:
   region: ${AWS_REGION}
   s3.bucket:
     staging: ${S3_BUCKET_STAGING}
     primary: ${S3_BUCKET_PRIMARY}
-    recycle-bin: ${RECYCLE_BIN}
   dynamodb.table : ${DYNAMODB_TABLE}
   lambda.function:
     image-processing-lambda: ${IMAGE_PROCESSING_LAMBDA}

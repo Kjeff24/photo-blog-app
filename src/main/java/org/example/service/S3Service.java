@@ -5,7 +5,7 @@ import org.example.dto.PreSignedUrlResponse;
 import org.example.model.BlogPost;
 
 public interface S3Service {;
-    BlogPost uploadImage(ImageUploadRequest imageUploadRequest, String userEmail);
+    BlogPost uploadImage(ImageUploadRequest imageUploadRequest, String userEmail, String fullName);
 
     PreSignedUrlResponse generatePreSignedUrl(String objectKey, String userEmail);
 

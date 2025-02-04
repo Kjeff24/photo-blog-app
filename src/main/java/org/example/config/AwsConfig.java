@@ -3,7 +3,6 @@ package org.example.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
-import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -51,9 +50,5 @@ public class AwsConfig {
         return SqsClient.create();
     }
 
-    @Bean
-    public CognitoIdentityProviderClient cognitoIdentityProviderClient() {
-        return CognitoIdentityProviderClient.create();
-    }
 
 }

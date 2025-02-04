@@ -18,10 +18,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class CloudFormationCustomResourceLambda implements RequestHandler<CloudFormationCustomResourceEvent, Void> {
-    private final S3Client s3Client;
 
     public CloudFormationCustomResourceLambda() {
-        s3Client = S3Client.create();
     }
 
     @Override
@@ -34,17 +32,6 @@ public class CloudFormationCustomResourceLambda implements RequestHandler<CloudF
                 sendResponse(responseUrl, event, context, status, responseData);
                 return null;
             }
-            String primaryBucket = event.getResourceProperties().get("S3_BUCKET_PRIMARY").toString();
-            String folderName = event.getResourceProperties().get("RECYCLE_BIN").toString();
-
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                    .bucket(primaryBucket)
-                    .key(folderName)
-                    .build();
-
-            s3Client.putObject(putObjectRequest, software.amazon.awssdk.core.sync.RequestBody.empty());
-
-            context.getLogger().log("Recycle bin folder created in bucket: " + primaryBucket);
 
         } catch (Exception e) {
             status = "FAILED";

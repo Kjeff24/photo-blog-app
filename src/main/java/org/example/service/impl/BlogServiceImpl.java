@@ -16,8 +16,7 @@ import java.util.List;
 public class BlogServiceImpl implements BlogService {
     private final BlogRepository blogRepository;
     private final S3Service s3Service;
-    @Value("${aws.s3.bucket.recycle-bin}")
-    private String recycleBin;
+    private final String recycleBin = "recycle-bin/";
 
     public List<BlogPost> findAllBlogPost() {
         return blogRepository.findAll();

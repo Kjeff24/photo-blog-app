@@ -18,6 +18,10 @@ Parameters:
     Type: String
     Default: "recycle-bin/"
     Description: Recycle bin directory for primary s3, ensure it ends with a forward slash
+  BackupRegion:
+    Type: String
+    Default: "eu-west-1"
+    Description: Backup region for disaster recovery
 
 Resources:
   ## Lambda function for API-GATEWAY
@@ -56,8 +60,8 @@ Resources:
                 - dynamodb:Scan
                 - dynamodb:DeleteItem
               Resource:
-                - !GetAtt Table.Arn
-                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}/index/*
+                - !GetAtt GlobalDynamoDBTable.Arn
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GlobalDynamoDBTable}/index/*
         - Statement:
             Effect: Allow
             Action:
@@ -75,7 +79,7 @@ Resources:
         Variables:
           S3_BUCKET_PRIMARY: !Ref PrimaryBucket
           S3_BUCKET_STAGING: !Ref StagingBucket
-          DYNAMODB_TABLE: !Ref Table
+          DYNAMODB_TABLE: !Ref GlobalDynamoDBTable
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
           TASK_QUEUE: !Ref TaskQueue
           COGNITO_USER_POOL_ID: !Ref UserPool
@@ -123,12 +127,12 @@ Resources:
               - dynamodb:PutItem
               - dynamodb:UpdateItem
               - dynamodb:GetItem
-            Resource: !GetAtt Table.Arn
+            Resource: !GetAtt GlobalDynamoDBTable.Arn
       Environment:
         Variables:
           S3_BUCKET_PRIMARY: !Ref PrimaryBucket
           #          S3_BUCKET_STAGING: !Ref StagingBucket
-          DYNAMODB_TABLE: !Ref Table
+          DYNAMODB_TABLE: !Ref GlobalDynamoDBTable
           STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
           TASK_QUEUE: !Ref TaskQueue
 
@@ -205,7 +209,6 @@ Resources:
             Trigger:
               - PostConfirmation
               - PostAuthentication
-
 
   # Lambda Function for creating recycle bin folder
   CloudFormationCustomResourceLambda:
@@ -329,8 +332,9 @@ Resources:
       Domain: !Sub ${AWS::StackName}-domain
       UserPoolId: !Ref UserPool
 
-  Table:
-    Type: AWS::DynamoDB::Table
+  # Global Table With replication across two region
+  GlobalDynamoDBTable:
+    Type: AWS::DynamoDB::GlobalTable
     Properties:
       TableName: !Sub ${AWS::StackName}-Table
       AttributeDefinitions:
@@ -343,6 +347,16 @@ Resources:
           KeyType: HASH
         - AttributeName: owner
           KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      Replicas:
+        - Region: !Ref AWS::Region
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: !Ref BackupRegion
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
       GlobalSecondaryIndexes:
         - IndexName: OwnerIndex
           KeySchema:
@@ -350,7 +364,6 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-      BillingMode: PAY_PER_REQUEST
 
   # SNS topic to send notification
   NotificationTopic:
@@ -480,6 +493,35 @@ Resources:
                   - lambda:InvokeFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ImageProcessingLambda
+
+  # DynamoDB replication role
+  DynamoDBReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: dynamodb.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: DynamoDBGlobalTableReplicationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTableReplica
+                  - dynamodb:UpdateTable
+                  - dynamodb:DeleteTableReplica
+                  - dynamodb:DescribeTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:DescribeContributorInsights
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AWS::StackName}-Table
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${AWS::StackName}-Table
+
 
 Outputs:
   PhotoBlogAppApi:

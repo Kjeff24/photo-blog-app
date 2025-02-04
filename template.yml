@@ -14,10 +14,6 @@ Parameters:
     Type: String
     Default: "http://localhost:4200"
     Description: The localhost of my frontend
-  RecycleBin:
-    Type: String
-    Default: "recycle-bin/"
-    Description: Recycle bin directory for primary s3, ensure it ends with a forward slash
   BackupRegion:
     Type: String
     Default: "eu-west-1"
@@ -85,7 +81,6 @@ Resources:
           COGNITO_USER_POOL_ID: !Ref UserPool
           FRONTEND_DEV_URL: !Ref FrontendDevHost
           FRONTEND_PROD_URL: !Ref FrontendProdHost
-          RECYCLE_BIN: !Ref RecycleBin
 
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:
@@ -211,31 +206,23 @@ Resources:
               - PostAuthentication
 
   # Lambda Function for creating recycle bin folder
-  CloudFormationCustomResourceLambda:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub ${AWS::StackName}-CloudFormationCustomResourceLambda
-      Handler: org.example.CloudFormationCustomResourceLambda::handleRequest
-      Runtime: java21
-      CodeUri: .
-      MemorySize: 512
-      Timeout: 30
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - Statement:
-            Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource: !GetAtt PrimaryBucket.Arn
+#  CloudFormationCustomResourceLambda:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: !Sub ${AWS::StackName}-CloudFormationCustomResourceLambda
+#      Handler: org.example.CloudFormationCustomResourceLambda::handleRequest
+#      Runtime: java21
+#      CodeUri: .
+#      MemorySize: 512
+#      Timeout: 30
+#      Policies: AWSLambdaBasicExecutionRole
 
   # Custom resource to perform actions during stack update, creation or deletion
-  MyCustomResource:
-    Type: Custom::MyCustomResource
-    Properties:
-      ServiceToken: !GetAtt CloudFormationCustomResourceLambda.Arn
-      ServiceTimeout: 30
-      S3_BUCKET_PRIMARY: !Ref PrimaryBucket
-      RECYCLE_BIN: !Ref RecycleBin
+#  MyCustomResource:
+#    Type: Custom::MyCustomResource
+#    Properties:
+#      ServiceToken: !GetAtt CloudFormationCustomResourceLambda.Arn
+#      ServiceTimeout: 30
 
   # Staging s3 bucket
   StagingBucket:

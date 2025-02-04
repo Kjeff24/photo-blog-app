@@ -41,7 +41,8 @@ public class BlogController {
             @AuthenticationPrincipal Jwt jwt
     ) {
         String userEmail = jwt.getClaimAsString("email");
-        return s3Service.uploadImage(imageUploadRequest, userEmail);
+        String fullName = jwt.getClaimAsString("name");
+        return s3Service.uploadImage(imageUploadRequest, userEmail, fullName);
 
     }
 

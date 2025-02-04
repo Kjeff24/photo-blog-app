@@ -5,10 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dto.ImageUploadRequest;
 import org.example.dto.PreSignedUrlResponse;
 import org.example.exception.CustomBadRequestException;
-import org.example.exception.CustomNotFoundException;
 import org.example.model.BlogPost;
-import org.example.repository.BlogRepository;
-import org.example.service.CognitoService;
 import org.example.service.S3Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -33,7 +30,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
@@ -44,7 +40,6 @@ public class S3ServiceImpl implements S3Service {
     private final S3Client s3Client;
     private final LambdaClient lambdaClient;
     private final S3Presigner s3Presigner;
-    private final CognitoService cognitoService;
     @Value("${aws.s3.bucket.staging}")
     private String stagingBucket;
     @Value("${aws.s3.bucket.primary}")
@@ -52,14 +47,13 @@ public class S3ServiceImpl implements S3Service {
     @Value("${aws.lambda.function.image-processing-lambda}")
     private String imageProcessingLambda;
 
-    public BlogPost uploadImage(ImageUploadRequest request, String userEmail) {
+    public BlogPost uploadImage(ImageUploadRequest request, String userEmail, String fullName) {
         try {
             byte[] imageBytes = Base64.getDecoder().decode(request.imageBase64());
             String mimeType = detectMimeType(imageBytes);
             validateImageType(mimeType);
 
             String objectKey = String.valueOf(UUID.randomUUID());
-            String fullName = cognitoService.findUserByEmail(userEmail).orElse(userEmail);
 
             s3Client.putObject(
                     PutObjectRequest.builder()

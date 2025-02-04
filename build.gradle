@@ -19,7 +19,6 @@ dependencies {
           'software.amazon.awssdk:sfn:2.30.2',
           'software.amazon.awssdk:lambda:2.30.2',
           'software.amazon.awssdk:dynamodb-enhanced:2.30.2',
-          'software.amazon.awssdk:cognitoidentityprovider:2.30.2',
           'software.amazon.awssdk:sqs:2.30.2',
           'software.amazon.awssdk:sns:2.30.2',
           'com.google.code.gson:gson:2.11.0',

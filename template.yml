@@ -315,8 +315,8 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
       CallbackURLs:
-        - !Ref FrontendDevHost
-        - !Ref FrontendProdHost
+        - !Sub "${FrontendDevHost}/oauth2/code"
+        - !Sub "${FrontendProdHost}/oauth2/code"
       UserPoolId: !Ref UserPool
       RefreshTokenValidity: 30
       AccessTokenValidity: 6

@@ -19,23 +19,31 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortK
 @NoArgsConstructor
 @AllArgsConstructor
 public class BlogPost {
-    private String photoId;
-    private String owner;
+    private String pk;
+    private String sk;
+    private String type;
     private String fullName;
     private String imageUrl;
     private String uploadDate;
     private int deleteStatus;
 
     @DynamoDbPartitionKey
-    public String getPhotoId() {
-        return photoId;
+    @DynamoDbAttribute(value = "PK")
+    public String getPk() {
+        return pk;
     }
 
     @DynamoDbSortKey
-    @DynamoDbAttribute(value = "owner")
+    @DynamoDbAttribute(value = "SK")
     @DynamoDbSecondaryPartitionKey(indexNames = "OwnerIndex")
-    public String getOwner() {
-        return owner;
+    public String getSk() {
+        return sk;
+    }
+
+    @DynamoDbAttribute(value = "Type")
+    @DynamoDbSecondaryPartitionKey(indexNames = "TypeIndex")
+    public String getType() {
+        return type;
     }
 
     @DynamoDbAttribute(value = "fullName")

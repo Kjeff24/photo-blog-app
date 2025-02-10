@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: API Failover using Route 53, CloudWatch Alarm, and Lambda
+
+Parameters:
+  PrimaryRegion:
+    Type: String
+    Default: "eu-central-1"
+  SecondaryRegion:
+    Type: String
+    Default: "eu-west-1"
+  PrimaryApiGatewayDomain:
+    Type: String
+    Description: "Primary API Gateway custom domain"
+  SecondaryApiGatewayDomain:
+    Type: String
+    Description: "Secondary API Gateway custom domain"
+  NotificationEmail:
+    Type: String
+    Description: "Administrator email for failover notifications"
+
+Resources:
+  Route53HealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: HTTPS
+        ResourcePath: "/health"
+        FullyQualifiedDomainName: !Ref PrimaryApiGatewayDomain
+        RequestInterval: 30
+        FailureThreshold: 3
+      HealthCheckTags:
+        - Key: Name
+          Value: "Primary API Health Check"
+
+  Route53FailoverRecordPrimary:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub "${PrimaryApiGatewayDomain}."
+      Name: !Sub "${PrimaryApiGatewayDomain}."
+      Type: A
+      SetIdentifier: "Primary"
+      HealthCheckId: !Ref Route53HealthCheck
+      Failover: PRIMARY
+      AliasTarget:
+        DNSName: !Ref PrimaryApiGatewayDomain
+        HostedZoneId: "Z2FDTNDATAQYW2"
+
+  Route53FailoverRecordSecondary:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub "${PrimaryApiGatewayDomain}."
+      Name: !Sub "${PrimaryApiGatewayDomain}."
+      Type: A
+      SetIdentifier: "Secondary"
+      Failover: SECONDARY
+      AliasTarget:
+        DNSName: !Ref SecondaryApiGatewayDomain
+        HostedZoneId: "Z2FDTNDATAQYW2"
+
+  CloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: "API Gateway Health Alarm"
+      MetricName: "HealthCheckStatus"
+      Namespace: "AWS/Route53"
+      Statistic: "Minimum"
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 1
+      ComparisonOperator: "LessThanThreshold"
+      AlarmActions:
+        - !Ref FailoverLambdaFunction
+
+  FailoverLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "FailoverNotificationLambda"
+      Runtime: python3.8
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          ADMIN_EMAIL: !Ref NotificationEmail
+          PRIMARY_API: !Ref PrimaryApiGatewayDomain
+          SECONDARY_API: !Ref SecondaryApiGatewayDomain
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          import json
+
+          sns = boto3.client('sns')
+          def lambda_handler(event, context):
+              admin_email = os.environ['ADMIN_EMAIL']
+              primary_api = os.environ['PRIMARY_API']
+              secondary_api = os.environ['SECONDARY_API']
+              message = f"Primary API ({primary_api}) is down. Failover to Secondary API ({secondary_api}) initiated."
+              response = sns.publish(
+                  TopicArn=os.environ['SNS_TOPIC_ARN'],
+                  Message=message,
+                  Subject="API Gateway Failover Alert"
+              )
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Failover Notification Sent')
+              }
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "ApiFailoverNotification"
+
+  SNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SNSTopic
+      Protocol: email
+      Endpoint: !Ref NotificationEmail
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "LambdaSNSPublish"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "sns:Publish"
+                Resource: !Ref SNSTopic

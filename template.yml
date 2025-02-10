@@ -86,8 +86,8 @@ Resources:
                 - dynamodb:Scan
                 - dynamodb:DeleteItem
               Resource:
-                - !GetAtt GlobalDynamoDBTable.Arn
-                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GlobalDynamoDBTable}/index/*
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}/index/*
         - Statement:
             Effect: Allow
             Action:
@@ -108,7 +108,7 @@ Resources:
             - !Ref PhotoBlogPrimaryBucket
             - !Ref PhotoBlogBackupBucket
           S3_BUCKET_STAGING: !Ref StagingBucket
-          DYNAMODB_TABLE: !Ref GlobalDynamoDBTable
+          DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
           TASK_QUEUE: !Ref TaskQueue
           COGNITO_USER_POOL_ID: !Ref UserPool
@@ -160,14 +160,15 @@ Resources:
               - dynamodb:PutItem
               - dynamodb:UpdateItem
               - dynamodb:GetItem
-            Resource: !GetAtt GlobalDynamoDBTable.Arn
+            Resource:
+              - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
       Environment:
         Variables:
           S3_BUCKET_PRIMARY: !If
             - IsPrimaryRegion
             - !Ref PhotoBlogPrimaryBucket
             - !Ref PhotoBlogBackupBucket
-          DYNAMODB_TABLE: !Ref GlobalDynamoDBTable
+          DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
           STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
           TASK_QUEUE: !Ref TaskQueue
 
@@ -595,8 +596,8 @@ Resources:
                   - dynamodb:DescribeContinuousBackups
                   - dynamodb:DescribeContributorInsights
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AWS::StackName}-Table
-                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${AWS::StackName}-Table
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
 
   # S3 replication role
   S3ReplicationRole:

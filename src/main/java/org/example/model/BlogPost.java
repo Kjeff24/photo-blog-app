@@ -28,19 +28,19 @@ public class BlogPost {
     private int deleteStatus;
 
     @DynamoDbPartitionKey
-    @DynamoDbAttribute(value = "PK")
+    @DynamoDbAttribute(value = "pk")
     public String getPk() {
         return pk;
     }
 
     @DynamoDbSortKey
-    @DynamoDbAttribute(value = "SK")
+    @DynamoDbAttribute(value = "sk")
     @DynamoDbSecondaryPartitionKey(indexNames = "OwnerIndex")
     public String getSk() {
         return sk;
     }
 
-    @DynamoDbAttribute(value = "Type")
+    @DynamoDbAttribute(value = "type")
     @DynamoDbSecondaryPartitionKey(indexNames = "TypeIndex")
     public String getType() {
         return type;

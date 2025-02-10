@@ -14,10 +14,17 @@ Parameters:
     Type: String
     Default: "http://localhost:4200"
     Description: The localhost of my frontend
+  PrimaryRegion:
+    Type: String
+    Default: "eu-central-1"
+    Description: Backup region for disaster recovery
   BackupRegion:
     Type: String
     Default: "eu-west-1"
     Description: Backup region for disaster recovery
+
+Conditions:
+  IsPrimaryRegion: !Equals [!Ref AWS::Region, !Ref PrimaryBucket]
 
 Resources:
   ## Lambda function for API-GATEWAY
@@ -239,6 +246,7 @@ Resources:
   # Primary s3 bucket
   PrimaryBucket:
     Type: AWS::S3::Bucket
+    Condition: IsPrimaryRegion
     #    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub '${AWS::StackName}-primary-bucket'
@@ -252,6 +260,7 @@ Resources:
 
   BackupPrimaryBucket:
     Type: AWS::S3::Bucket
+    Condition: IsPrimaryRegion
     Properties:
       BucketName: !Sub '${AWS::StackName}-backup-primary-bucket'
       PublicAccessBlockConfiguration:
@@ -336,17 +345,20 @@ Resources:
   # Global Table With replication across two region
   GlobalDynamoDBTable:
     Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
     Properties:
       TableName: !Sub ${AWS::StackName}-Table
       AttributeDefinitions:
-        - AttributeName: photoId
+        - AttributeName: PK
           AttributeType: S
-        - AttributeName: owner
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: Type
           AttributeType: S
       KeySchema:
-        - AttributeName: photoId
+        - AttributeName: PK
           KeyType: HASH
-        - AttributeName: owner
+        - AttributeName: SK
           KeyType: RANGE
       BillingMode: PAY_PER_REQUEST
       StreamSpecification:
@@ -362,6 +374,12 @@ Resources:
         - IndexName: OwnerIndex
           KeySchema:
             - AttributeName: owner
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: TypeIndex
+          KeySchema:
+            - AttributeName: type
               KeyType: HASH
           Projection:
             ProjectionType: ALL

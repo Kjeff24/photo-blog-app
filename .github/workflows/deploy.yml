@@ -75,6 +75,9 @@ jobs:
       - name: Deploy to Primary Region
         run: |
           echo "Deploying to Primary Region: $PRIMARY_REGION"
+          
+          STACK_NAME="photo-blog-app-${{ github.ref == 'refs/heads/test' && 'test' || 'prod' }}-main"
+          
           PARAM_OVERRIDES=""
           if [ -n "$PRIMARY_REGION" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryRegion=$PRIMARY_REGION"
@@ -93,7 +96,7 @@ jobs:
           fi
           
           sam deploy --no-confirm-changeset \
-          --stack-name photo-blog-app-${{ github.ref == 'refs/heads/test' && 'test' || 'prod' }} \
+          --stack-name "$STACK_NAME" \
           --resolve-s3 \
           --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
           --region $PRIMARY_REGION \
@@ -102,6 +105,9 @@ jobs:
       - name: Deploy to Backup Region
         run: |
           echo "Deploying to Backup Region: $BACKUP_REGION"
+          
+          STACK_NAME="photo-blog-app-${{ github.ref == 'refs/heads/test' && 'test' || 'prod' }}-backup"
+          
           PARAM_OVERRIDES=""
           if [ -n "$PRIMARY_REGION" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryRegion=$PRIMARY_REGION"
@@ -119,7 +125,7 @@ jobs:
             PARAM_OVERRIDES="--parameter-overrides $PARAM_OVERRIDES"
           fi
           sam deploy --no-confirm-changeset \
-          --stack-name photo-blog-app-${{ github.ref == 'refs/heads/test' && 'test' || 'prod' }} \
+          --stack-name "$STACK_NAME" \
           --resolve-s3 \
           --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
           --region $BACKUP_REGION \

@@ -14,22 +14,6 @@ Parameters:
     Type: String
     Default: "http://localhost:4200"
     Description: The localhost of my frontend
-  PhotoBlogPrimaryBucket:
-    Type: String
-    Default: "photo-blog-app-primary-bucket"
-    Description: Primary bucket for s3 bucket
-  #  PhotoBlogStagingBucket:
-  #    Type: String
-  #    Default: "photo-blog-app-staging-bucket"
-  #    Description: Staging bucket for s3 bucket
-  PhotoBlogBackupBucket:
-    Type: String
-    Default: "photo-blog-app-backup-bucket"
-    Description: Backup bucket for s3 bucket
-  DynamoDBGlobalTable:
-    Type: String
-    Default: "dynamodb-global-table"
-    Description: DynamoDB global table
   PrimaryRegion:
     Type: String
     Default: "eu-central-1"
@@ -41,8 +25,6 @@ Parameters:
 
 Conditions:
   IsPrimaryRegion: !Equals [!Ref AWS::Region, !Ref PrimaryRegion]
-  IsBackupRegion: !Equals [ !Ref AWS::Region, !Ref BackupRegion ]
-
 
 Resources:
   ## Lambda function for API-GATEWAY
@@ -63,13 +45,8 @@ Resources:
               - s3:GetObject
               - s3:CopyObject
             Resource:
-              - !Sub
-                - arn:aws:s3:::${BucketName}
-                - BucketName: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
-              - !Sub 'arn:aws:s3:::${StagingBucket}'
+              - !GetAtt PrimaryBucket.Arn
+              - !GetAtt StagingBucket.Arn
         - Statement:
             - Effect: Allow
               Action:
@@ -86,8 +63,8 @@ Resources:
                 - dynamodb:Scan
                 - dynamodb:DeleteItem
               Resource:
-                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
-                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}/index/*
+                - !GetAtt GlobalDynamoDBTable.Arn
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GlobalDynamoDBTable}/index/*
         - Statement:
             Effect: Allow
             Action:
@@ -103,12 +80,9 @@ Resources:
             Method: any
       Environment:
         Variables:
-          S3_BUCKET_PRIMARY: !If
-            - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryBucket
-            - !Ref PhotoBlogBackupBucket
+          S3_BUCKET_PRIMARY: !Ref PrimaryBucket
           S3_BUCKET_STAGING: !Ref StagingBucket
-          DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
+          DYNAMODB_TABLE: !Ref GlobalDynamoDBTable
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
           TASK_QUEUE: !Ref TaskQueue
           COGNITO_USER_POOL_ID: !Ref UserPool
@@ -135,13 +109,8 @@ Resources:
               - s3:DeleteObject
               - s3:ListBucket
             Resource:
-              - !Sub
-                - arn:aws:s3:::${BucketName}
-                - BucketName: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
-              - !Sub 'arn:aws:s3:::${StagingBucket}'
+              - !GetAtt PrimaryBucket.Arn
+              - !GetAtt StagingBucket.Arn
         - Statement:
             - Effect: Allow
               Action:
@@ -160,15 +129,12 @@ Resources:
               - dynamodb:PutItem
               - dynamodb:UpdateItem
               - dynamodb:GetItem
-            Resource:
-              - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
+            Resource: !GetAtt GlobalDynamoDBTable.Arn
       Environment:
         Variables:
-          S3_BUCKET_PRIMARY: !If
-            - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryBucket
-            - !Ref PhotoBlogBackupBucket
-          DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
+          S3_BUCKET_PRIMARY: !Ref PrimaryBucket
+          #          S3_BUCKET_STAGING: !Ref StagingBucket
+          DYNAMODB_TABLE: !Ref GlobalDynamoDBTable
           STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
           TASK_QUEUE: !Ref TaskQueue
 
@@ -283,7 +249,7 @@ Resources:
     Condition: IsPrimaryRegion
     #    DeletionPolicy: Retain
     Properties:
-      BucketName: !Ref PhotoBlogPrimaryBucket
+      BucketName: !Sub '${AWS::StackName}-primary-bucket'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -295,9 +261,8 @@ Resources:
   BackupPrimaryBucket:
     Type: AWS::S3::Bucket
     Condition: IsPrimaryRegion
-    DeletionPolicy: Retain
     Properties:
-      BucketName: !Ref PhotoBlogBackupBucket
+      BucketName: !Sub '${AWS::StackName}-backup-primary-bucket'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -382,7 +347,7 @@ Resources:
     Type: AWS::DynamoDB::GlobalTable
     Condition: IsPrimaryRegion
     Properties:
-      TableName: !Ref DynamoDBGlobalTable
+      TableName: !Sub ${AWS::StackName}-Table
       AttributeDefinitions:
         - AttributeName: pk
           AttributeType: S
@@ -512,7 +477,6 @@ Resources:
   # Primary bucket policy
   PrimaryBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    Condition: IsPrimaryRegion
     Properties:
       Bucket: !Ref PrimaryBucket
       PolicyDocument:
@@ -524,17 +488,10 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
-            Resource:
-              - !Sub
-                - arn:aws:s3:::${BucketName}/*
-                - BucketName: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
+            Resource: !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
 
   BackupPrimaryBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    Condition: IsPrimaryRegion
     Properties:
       Bucket: !Ref BackupPrimaryBucket
       PolicyDocument:
@@ -546,7 +503,7 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
+            Resource: !Sub 'arn:aws:s3:::${BackupPrimaryBucket}/*'
 
   # IAM ROLES
   # Step Functions Role
@@ -596,8 +553,8 @@ Resources:
                   - dynamodb:DescribeContinuousBackups
                   - dynamodb:DescribeContributorInsights
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
-                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AWS::StackName}-Table
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${AWS::StackName}-Table
 
   # S3 replication role
   S3ReplicationRole:
@@ -624,13 +581,8 @@ Resources:
                   - s3:GetBucketVersioning
                   - s3:GetBucketLocation
                 Resource:
-                  - !Sub
-                    - arn:aws:s3:::${BucketName}
-                    - BucketName: !If
-                        - IsPrimaryRegion
-                        - !Ref PhotoBlogPrimaryBucket
-                        - !Ref PhotoBlogBackupBucket
-                  - !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
+                  - !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
+                  - !Sub 'arn:aws:s3:::${BackupPrimaryBucket}/*'
 
 Outputs:
   PhotoBlogAppApi:

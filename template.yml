@@ -659,11 +659,6 @@ Outputs:
     Description: AWS CLI command for Amazon Cognito User Pool information
     Value: !Sub "aws cognito-idp describe-user-pool-client --user-pool-id ${UserPool} --client-id ${UserPoolClient}"
 
-
-  PrimaryS3Bucket:
-    Description: Primary s3 bucket
-    Value: !Ref PrimaryBucket
-
   StagingS3Bucket:
     Description: Staging s3 bucket
     Value: !Ref StagingBucket

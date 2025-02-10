@@ -49,8 +49,8 @@ jobs:
           name: sam-build-artifacts
           path: .aws-sam/build
 
-  deploy:
-    name: Deploy to AWS (Test/Prod)
+  deploy_primary_region:
+    name: Deploy to Primary Region
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/test' || github.ref == 'refs/heads/prod'
@@ -65,12 +65,12 @@ jobs:
           name: sam-build-artifacts
           path: .aws-sam/build
 
-      - name: Configure AWS CLI
+      - name: Configure AWS CLI (Primary Region)
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ env.PRIMARY_REGION }}
 
       - name: Deploy to Primary Region
         run: |
@@ -78,10 +78,7 @@ jobs:
           
           STACK_NAME="photo-blog-app-${{ github.ref == 'refs/heads/test' && 'test' || 'prod' }}-main"
           
-          PARAM_OVERRIDES=""
-          if [ -n "$PRIMARY_REGION" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryRegion=$PRIMARY_REGION"
-          fi
+          PARAM_OVERRIDES="PrimaryRegion=$PRIMARY_REGION"
           
           if [ -n "$BACKUP_REGION" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES BackupRegion=$BACKUP_REGION"
@@ -102,16 +99,36 @@ jobs:
           --region $PRIMARY_REGION \
           $PARAM_OVERRIDES
 
+  deploy_backup_region:
+    name: Deploy to Backup Region
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/test' || github.ref == 'refs/heads/prod'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download SAM Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sam-build-artifacts
+          path: .aws-sam/build
+
+      - name: Configure AWS CLI (Backup Region)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.BACKUP_REGION }}
+
       - name: Deploy to Backup Region
         run: |
           echo "Deploying to Backup Region: $BACKUP_REGION"
           
           STACK_NAME="photo-blog-app-${{ github.ref == 'refs/heads/test' && 'test' || 'prod' }}-backup"
           
-          PARAM_OVERRIDES=""
-          if [ -n "$PRIMARY_REGION" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryRegion=$PRIMARY_REGION"
-          fi
+          PARAM_OVERRIDES="PrimaryRegion=$PRIMARY_REGION"
           
           if [ -n "$BACKUP_REGION" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES BackupRegion=$BACKUP_REGION"
@@ -124,6 +141,7 @@ jobs:
           if [ -n "$PARAM_OVERRIDES" ]; then
             PARAM_OVERRIDES="--parameter-overrides $PARAM_OVERRIDES"
           fi
+          
           sam deploy --no-confirm-changeset \
           --stack-name "$STACK_NAME" \
           --resolve-s3 \

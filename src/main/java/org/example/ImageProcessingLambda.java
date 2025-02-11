@@ -195,8 +195,8 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         dynamoDbClient.putItem(putItemRequest);
 
         Map<String, Object> imageMetadata = new HashMap<>();
-        imageMetadata.put("photoId", imageKey);
-        imageMetadata.put("owner", email);
+        imageMetadata.put("pk", imageKey);
+        imageMetadata.put("sk", email);
         imageMetadata.put("fullName", fullName);
         imageMetadata.put("imageUrl", imageUrl);
         imageMetadata.put("uploadDate", uploadDate);

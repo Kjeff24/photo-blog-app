@@ -291,6 +291,13 @@ Resources:
         RestrictPublicBuckets: false
       VersioningConfiguration:
         Status: Enabled
+      ReplicationConfiguration:
+        Role: !GetAtt S3ReplicationRole.Arn
+        Rules:
+          - Destination:
+              Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
+            Status: Enabled
+            Prefix: ""
 
   BackupPrimaryBucket:
     Type: AWS::S3::Bucket
@@ -491,6 +498,7 @@ Resources:
           }
         }
 
+
   # BUCKET POLICIES
 
   # Staging bucket policy
@@ -524,13 +532,7 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
-            Resource:
-              - !Sub
-                - arn:aws:s3:::${BucketName}/*
-                - BucketName: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
+            Resource: !Sub 'arn:aws:s3:::${PhotoBlogPrimaryBucket}/*'
 
   BackupPrimaryBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -602,6 +604,7 @@ Resources:
   # S3 replication role
   S3ReplicationRole:
     Type: AWS::IAM::Role
+    Condition: IsPrimaryRegion
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -624,12 +627,7 @@ Resources:
                   - s3:GetBucketVersioning
                   - s3:GetBucketLocation
                 Resource:
-                  - !Sub
-                    - arn:aws:s3:::${BucketName}
-                    - BucketName: !If
-                        - IsPrimaryRegion
-                        - !Ref PhotoBlogPrimaryBucket
-                        - !Ref PhotoBlogBackupBucket
+                  - !Sub 'arn:aws:s3:::${PhotoBlogPrimaryBucket}/*'
                   - !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
 
 Outputs:

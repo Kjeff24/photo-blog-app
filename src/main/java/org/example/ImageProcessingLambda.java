@@ -137,7 +137,8 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         };
     }
 
-    public InputStream processImageWithWatermark(InputStream inputStream, String fullName, String imageFormat) throws IOException {
+    public InputStream processImageWithWatermark(InputStream inputStream, String name, String imageFormat) throws IOException {
+        String fullName = name.toUpperCase();
         BufferedImage originalImage = ImageIO.read(inputStream);
 
         Graphics2D graphics = (Graphics2D) originalImage.getGraphics();
@@ -163,13 +164,6 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         ImageIO.write(originalImage, imageFormat, byteArrayOutputStream);
 
         return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
-    }
-
-    private static Color getWatermarkColor(Color backgroundColor) {
-        int brightness = (int) Math.sqrt(0.299 * Math.pow(backgroundColor.getRed(), 2) +
-                0.587 * Math.pow(backgroundColor.getGreen(), 2) +
-                0.114 * Math.pow(backgroundColor.getBlue(), 2));
-        return brightness > 128 ? new Color(0, 0, 0, 75) : new Color(255, 255, 255, 75);
     }
 
     private void uploadProcessedImage(String objectKey, String mimeType, InputStream processedImage) throws IOException {

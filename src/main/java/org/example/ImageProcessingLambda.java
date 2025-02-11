@@ -183,8 +183,8 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         PutItemRequest putItemRequest = PutItemRequest.builder()
                 .tableName(dynamodbTable)
                 .item(Map.of(
-                        "photoId", AttributeValue.builder().s(imageKey).build(),
-                        "owner", AttributeValue.builder().s(email).build(),
+                        "pk", AttributeValue.builder().s(imageKey).build(),
+                        "sk", AttributeValue.builder().s(email).build(),
                         "fullName", AttributeValue.builder().s(fullName).build(),
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
                         "uploadDate", AttributeValue.builder().s(uploadDate).build(),

@@ -16,7 +16,7 @@ public interface BlogRepository {
 
     boolean deleteBlogPost(String photoId, String owner);
 
-    void updateDeleteStatus(String photoId, String owner, int i);
+    void updateDeleteStatusAndImageUrl(String photoId, String owner, int i, String imageUrl);
 
     List<BlogPost> findAllByUserAndDeleteStatus(String owner, int i);
 }

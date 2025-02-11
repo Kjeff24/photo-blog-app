@@ -80,11 +80,12 @@ public class BlogRepositoryImpl implements BlogRepository {
         return true;
     }
 
-    public void updateDeleteStatus(String photoId, String owner, int i) {
+    public void updateDeleteStatusAndImageUrl(String photoId, String owner, int i, String imageUrl) {
         Optional<BlogPost> blogPost = findByPhotoIdAndOwner(photoId, owner);
 
         if(blogPost.isPresent()) {
             blogPost.get().setDeleteStatus(i);
+            blogPost.get().setImageUrl(imageUrl);
             save(blogPost.get());
         }
     }

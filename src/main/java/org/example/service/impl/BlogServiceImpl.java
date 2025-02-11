@@ -17,6 +17,10 @@ public class BlogServiceImpl implements BlogService {
     private final BlogRepository blogRepository;
     private final S3Service s3Service;
     private final String recycleBin = "recycle-bin/";
+    @Value("${aws.region}")
+    private String awsRegion;
+    @Value("${aws.s3.bucket.primary}")
+    private String primaryBucket;
 
     public List<BlogPost> findAllBlogPost() {
         return blogRepository.findAll();
@@ -41,18 +45,21 @@ public class BlogServiceImpl implements BlogService {
 
     public void moveToOrRestoreFromRecycleBin(String photoId, String userEmail, boolean isMoveToRecycleBin) {
         try {
+            String imageUrl;
             if (isMoveToRecycleBin) {
                 // Move to recycle bin
                 String destinationKey = recycleBin + photoId;
+                imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + destinationKey;
                 s3Service.moveObject(photoId, destinationKey);
                 s3Service.deleteObject(photoId);
-                blogRepository.updateDeleteStatus(photoId, userEmail, 1);
+                blogRepository.updateDeleteStatusAndImageUrl(photoId, userEmail, 1, imageUrl);
             } else {
                 // Restore from recycle bin
                 String sourceKey = recycleBin + photoId;
+                imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + sourceKey;
                 s3Service.moveObject(sourceKey, photoId);
                 s3Service.deleteObject(sourceKey);
-                blogRepository.updateDeleteStatus(photoId, userEmail, 0);
+                blogRepository.updateDeleteStatusAndImageUrl(photoId, userEmail, 0, imageUrl);
             }
         } catch (Exception e) {
             throw new CustomBadRequestException(isMoveToRecycleBin ? "Failed to move to recycle bin" : "Failed to restore from recycle bin");

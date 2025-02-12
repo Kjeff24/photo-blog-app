@@ -145,7 +145,7 @@ Resources:
     Properties:
       DomainName: !Ref ApiGatewayDomainName
       RestApiId: !Sub ${ServerlessRestApi}
-      Stage: "prod"
+      Stage: "Prod"
 
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:

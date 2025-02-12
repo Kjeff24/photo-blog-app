@@ -13,6 +13,12 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   PRIMARY_REGION: ${{ secrets.AWS_REGION }}
   BACKUP_REGION: ${{ secrets.BACKUP_REGION }}
+  PRIMARY_TEST_DOMAIN_NAME: ${{ secrets.PRIMARY_TEST_DOMAIN_NAME }}
+  PRIMARY_PROD_DOMAIN_NAME: ${{ secrets.PRIMARY_PROD_DOMAIN_NAME }}
+  BACKUP_TEST_DOMAIN_NAME: ${{ secrets.BACKUP_TEST_DOMAIN_NAME }}
+  BACKUP_PROD_DOMAIN_NAME: ${{ secrets.BACKUP_PROD_DOMAIN_NAME }}\
+  PRIMARY_ACM_CERTIFICATE_ARN: ${{ secrets.PRIMARY_ACM_CERTIFICATE_ARN }}\
+  BACKUP_ACM_CERTIFICATE_ARN: ${{ secrets.BACKUP_ACM_CERTIFICATE_ARN }}\
 
 jobs:
   build:
@@ -88,6 +94,21 @@ jobs:
             PARAM_OVERRIDES="$PARAM_OVERRIDES FrontendProdHost=$FRONT_END_URI"
           fi
           
+          if [ -n "$PRIMARY_ACM_CERTIFICATE_ARN" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryACMCertificate=$PRIMARY_ACM_CERTIFICATE_ARN"
+          fi
+          
+          if [ -n "$BACKUP_ACM_CERTIFICATE_ARN" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES BackupACMCertificate=$BACKUP_ACM_CERTIFICATE_ARN"
+          fi
+          
+          
+          if [ "$GITHUB_REF" == "refs/heads/test" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_TEST_DOMAIN_NAME BackupDomainName=$BACKUP_TEST_DOMAIN_NAME"
+          else
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_PROD_DOMAIN_NAME BackupDomainName=$BACKUP_PROD_DOMAIN_NAME"
+          fi
+          
           if [ -n "$PARAM_OVERRIDES" ]; then
             PARAM_OVERRIDES="--parameter-overrides $PARAM_OVERRIDES"
           fi
@@ -136,6 +157,20 @@ jobs:
           
           if [ -n "$FRONT_END_URI" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES FrontendProdHost=$FRONT_END_URI"
+          fi
+          
+          if [ -n "$PRIMARY_ACM_CERTIFICATE_ARN" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryACMCertificate=$PRIMARY_ACM_CERTIFICATE_ARN"
+          fi
+          
+          if [ -n "$BACKUP_ACM_CERTIFICATE_ARN" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES BackupACMCertificate=$BACKUP_ACM_CERTIFICATE_ARN"
+          fi
+          
+          if [ "$GITHUB_REF" == "refs/heads/test" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_TEST_DOMAIN_NAME BackupDomainName=$BACKUP_TEST_DOMAIN_NAME"
+          else
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_PROD_DOMAIN_NAME BackupDomainName=$BACKUP_PROD_DOMAIN_NAME"
           fi
           
           if [ -n "$PARAM_OVERRIDES" ]; then

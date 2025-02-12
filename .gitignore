@@ -41,3 +41,4 @@ samconfig.toml
 .env
 .idea/
 .aws-sam
+note.txt

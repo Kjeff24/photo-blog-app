@@ -9,7 +9,7 @@ Parameters:
   FrontendDevHost:
     Type: String
     Default: "http://localhost:4200"
-    Description: The localhost of my frontend
+    Description: The hosted frontend
   FrontendProdHost:
     Type: String
     Default: "http://localhost:4200"
@@ -40,10 +40,10 @@ Parameters:
   BackupDomainName:
     Type: String
     Description: Custom domain name for your backup API Gateway
-  PrimaryACMCertificate:
+  PrimaryACMCertificateArn:
     Type: String
     Description: AWS Certificate Manager certificate for primary region
-  BackupACMCertificate:
+  BackupACMCertificateArn:
     Type: String
     Description: AWS Certificate Manager certificate for backup region
 
@@ -133,8 +133,8 @@ Resources:
         - !Ref BackupDomainName
       RegionalCertificateArn: !If
         - IsPrimaryRegion
-        - !Ref PrimaryACMCertificate
-        - !Ref BackupACMCertificate
+        - !Ref PrimaryACMCertificateArn
+        - !Ref BackupACMCertificateArn
       EndpointConfiguration:
         Types:
           - REGIONAL

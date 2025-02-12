@@ -95,11 +95,11 @@ jobs:
           fi
           
           if [ -n "$PRIMARY_ACM_CERTIFICATE_ARN" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryACMCertificate=$PRIMARY_ACM_CERTIFICATE_ARN"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryACMCertificateArn=$PRIMARY_ACM_CERTIFICATE_ARN"
           fi
           
           if [ -n "$BACKUP_ACM_CERTIFICATE_ARN" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES BackupACMCertificate=$BACKUP_ACM_CERTIFICATE_ARN"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES BackupACMCertificateArn=$BACKUP_ACM_CERTIFICATE_ARN"
           fi
           
           
@@ -160,11 +160,11 @@ jobs:
           fi
           
           if [ -n "$PRIMARY_ACM_CERTIFICATE_ARN" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryACMCertificate=$PRIMARY_ACM_CERTIFICATE_ARN"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryACMCertificateArn=$PRIMARY_ACM_CERTIFICATE_ARN"
           fi
           
           if [ -n "$BACKUP_ACM_CERTIFICATE_ARN" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES BackupACMCertificate=$BACKUP_ACM_CERTIFICATE_ARN"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES BackupACMCertificateArn=$BACKUP_ACM_CERTIFICATE_ARN"
           fi
           
           if [ "$GITHUB_REF" == "refs/heads/test" ]; then

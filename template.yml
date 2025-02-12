@@ -18,10 +18,6 @@ Parameters:
     Type: String
     Default: "photo-blog-app-primary-bucket"
     Description: Primary bucket for s3 bucket
-  #  PhotoBlogStagingBucket:
-  #    Type: String
-  #    Default: "photo-blog-app-staging-bucket"
-  #    Description: Staging bucket for s3 bucket
   PhotoBlogBackupBucket:
     Type: String
     Default: "photo-blog-app-backup-bucket"
@@ -38,6 +34,18 @@ Parameters:
     Type: String
     Default: "eu-west-1"
     Description: Backup region for disaster recovery
+  PrimaryDomainName:
+    Type: String
+    Description: Custom domain name for your primary API Gateway
+  BackupDomainName:
+    Type: String
+    Description: Custom domain name for your backup API Gateway
+  PrimaryACMCertificate:
+    Type: String
+    Description: AWS Certificate Manager certificate for primary region
+  BackupACMCertificate:
+    Type: String
+    Description: AWS Certificate Manager certificate for backup region
 
 Conditions:
   IsPrimaryRegion: !Equals [!Ref AWS::Region, !Ref PrimaryRegion]
@@ -114,6 +122,30 @@ Resources:
           COGNITO_USER_POOL_ID: !Ref UserPool
           FRONTEND_DEV_URL: !Ref FrontendDevHost
           FRONTEND_PROD_URL: !Ref FrontendProdHost
+
+  # Custom Domain for API Gateway
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !If
+        - IsPrimaryRegion
+        - !Ref PrimaryDomainName
+        - !Ref BackupDomainName
+      RegionalCertificateArn: !If
+        - IsPrimaryRegion
+        - !Ref PrimaryACMCertificate
+        - !Ref BackupACMCertificate
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # Base path for custom domain
+  CustomDomainBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !Sub ${ServerlessRestApi}
+      Stage: "prod"
 
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:

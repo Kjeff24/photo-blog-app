@@ -2,21 +2,24 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: API Failover using Route 53, CloudWatch Alarm, and Lambda
 
 Parameters:
-  PrimaryRegion:
-    Type: String
-    Default: "eu-central-1"
-  SecondaryRegion:
-    Type: String
-    Default: "eu-west-1"
   PrimaryApiGatewayDomain:
     Type: String
     Description: "Primary API Gateway custom domain"
-  SecondaryApiGatewayDomain:
+  BackupApiGatewayDomain:
     Type: String
     Description: "Secondary API Gateway custom domain"
-  NotificationEmail:
+  AdminEmail:
     Type: String
     Description: "Administrator email for failover notifications"
+  HostedZoneName:
+    Type: String
+    Description: "The name of the Route 53 hosted zone (must end with a dot)"
+  PrimaryHostedZoneID:
+    Type: String
+    Description: "eu-central-1 route 53 hosted zone ID"
+  BackupHostedZoneID:
+    Type: String
+    Description: "eu-west-1 route 53 hosted zone ID"
 
 Resources:
   Route53HealthCheck:
@@ -35,27 +38,27 @@ Resources:
   Route53FailoverRecordPrimary:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneName: !Sub "${PrimaryApiGatewayDomain}."
-      Name: !Sub "${PrimaryApiGatewayDomain}."
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Ref PrimaryApiGatewayDomain
       Type: A
       SetIdentifier: "Primary"
       HealthCheckId: !Ref Route53HealthCheck
       Failover: PRIMARY
       AliasTarget:
         DNSName: !Ref PrimaryApiGatewayDomain
-        HostedZoneId: "Z2FDTNDATAQYW2"
+        HostedZoneId: "Z2FDTNDATAQYW2"  # Hosted Zone ID for API Gateway
 
   Route53FailoverRecordSecondary:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneName: !Sub "${PrimaryApiGatewayDomain}."
-      Name: !Sub "${PrimaryApiGatewayDomain}."
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Ref PrimaryApiGatewayDomain
       Type: A
       SetIdentifier: "Secondary"
       Failover: SECONDARY
       AliasTarget:
-        DNSName: !Ref SecondaryApiGatewayDomain
-        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: "BackupApiGatewayDomain"
+        HostedZoneId: "Z2FDTNDATAQYW2"  # Hosted Zone ID for API Gateway
 
   CloudWatchAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -69,7 +72,19 @@ Resources:
       Threshold: 1
       ComparisonOperator: "LessThanThreshold"
       AlarmActions:
-        - !Ref FailoverLambdaFunction
+        - !Ref SNSTopic
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "ApiFailoverNotification"
+
+  SNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SNSTopic
+      Protocol: email
+      Endpoint: "AdminEmail"
 
   FailoverLambdaFunction:
     Type: AWS::Lambda::Function
@@ -80,9 +95,10 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          ADMIN_EMAIL: !Ref NotificationEmail
+          ADMIN_EMAIL: "AdminEmail"
           PRIMARY_API: !Ref PrimaryApiGatewayDomain
-          SECONDARY_API: !Ref SecondaryApiGatewayDomain
+          SECONDARY_API: "BackupApiGatewayDomain"
+          SNS_TOPIC_ARN: !Ref SNSTopic
       Code:
         ZipFile: |
           import os
@@ -104,18 +120,6 @@ Resources:
                   'statusCode': 200,
                   'body': json.dumps('Failover Notification Sent')
               }
-
-  SNSTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: "ApiFailoverNotification"
-
-  SNSSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !Ref SNSTopic
-      Protocol: email
-      Endpoint: !Ref NotificationEmail
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role

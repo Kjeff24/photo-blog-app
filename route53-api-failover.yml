@@ -23,6 +23,10 @@ Parameters:
   BackupHostedZoneID:
     Type: String
     Description: "eu-west-1 route 53 hosted zone ID"
+  AlarmName:
+    Type: String
+    Default: "APIGatewayHealthCheckFailure"
+    Description: "Alarm name"
 
 Resources:
   # ✅ Route 53 Health Check for Primary API
@@ -33,12 +37,32 @@ Resources:
         Type: HTTPS
         ResourcePath: "/health"
         FullyQualifiedDomainName: !Ref DomainName
-        RequestInterval: 30
-        FailureThreshold: 3
+        RequestInterval: 10
+        FailureThreshold: 2
       HealthCheckTags:
         - Key: Name
           Value: "Primary API Health Check"
 
+  # ✅ CloudWatch Alarm for Health Check Failure
+  HealthCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Triggers failover if the primary API health check fails"
+      AlarmName: !Ref AlarmName
+      Namespace: "AWS/Route53"
+      MetricName: HealthCheckStatus
+      Dimensions:
+        - Name: HealthCheckId
+          Value: !GetAtt Route53HealthCheck.HealthCheckId
+      ComparisonOperator: LessThanThreshold
+      Threshold: 1
+      Statistic: Minimum
+      Period: 10
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SNSTopic
+  
   # ✅ Route 53 Failover DNS Record for primary api gateway
   Route53FailoverRecordPrimary:
     Type: AWS::Route53::RecordSet
@@ -65,23 +89,6 @@ Resources:
       AliasTarget:
         DNSName: !Ref BackupRegionalDomainName
         HostedZoneId: !Ref BackupHostedZoneID
-
-  # ✅ CloudWatch Alarm for Health Check Failure
-  HealthCheckAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmDescription: "Triggers failover if the primary API health check fails"
-      AlarmName: "APIGatewayHealthCheckFailure"
-      Namespace: "AWS/Route53"
-      MetricName: HealthCheckStatus
-      ComparisonOperator: LessThanThreshold
-      Threshold: 1
-      Statistic: Minimum
-      Period: 60
-      EvaluationPeriods: 1
-      TreatMissingData: notBreaching
-      AlarmActions:
-        - !Ref SNSTopic
 
   # ✅ SNS Topic for Notifications
   SNSTopic:

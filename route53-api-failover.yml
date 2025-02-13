@@ -2,18 +2,21 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: API Failover using Route 53, CloudWatch Alarm, and Lambda
 
 Parameters:
-  PrimaryApiGatewayDomain:
+  PrimaryRegionalDomainName:
     Type: String
-    Description: "Primary API Gateway custom domain"
-  BackupApiGatewayDomain:
+    Description: "Primary API Gateway regional domain name (e.g. xxxx.execute-api.<region>.amazonaws.com)"
+  BackupRegionalDomainName:
     Type: String
-    Description: "Secondary API Gateway custom domain"
+    Description: "Secondary API Gateway regional domain name (e.g. xxxx.execute-api.<region>.amazonaws.com)"
+  DomainName:
+    Type: String
+    Description: "Domain name used for both primary and backup api gateway (e.g. api-photoblog.com)"
   AdminEmail:
     Type: String
     Description: "Administrator email for failover notifications"
   HostedZoneName:
     Type: String
-    Description: "The name of the Route 53 hosted zone (must end with a dot)"
+    Description: "The name of the Route 53 hosted zone (must end with a dot e.g. photoblog.com.)"
   PrimaryHostedZoneID:
     Type: String
     Description: "eu-central-1 route 53 hosted zone ID"
@@ -22,70 +25,87 @@ Parameters:
     Description: "eu-west-1 route 53 hosted zone ID"
 
 Resources:
+  # ✅ Route 53 Health Check for Primary API
   Route53HealthCheck:
     Type: AWS::Route53::HealthCheck
     Properties:
       HealthCheckConfig:
         Type: HTTPS
-        ResourcePath: "/health"
-        FullyQualifiedDomainName: !Ref PrimaryApiGatewayDomain
+        ResourcePath: "actuator/health"
+        FullyQualifiedDomainName: !Ref DomainName
         RequestInterval: 30
         FailureThreshold: 3
       HealthCheckTags:
         - Key: Name
           Value: "Primary API Health Check"
 
+  # ✅ Route 53 Failover DNS Record for primary api gateway
   Route53FailoverRecordPrimary:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneName: !Ref HostedZoneName
-      Name: !Ref PrimaryApiGatewayDomain
+      Name: !Ref DomainName
       Type: A
-      SetIdentifier: "Primary"
+      SetIdentifier: !Sub ${AWS::Region}-failover
       HealthCheckId: !Ref Route53HealthCheck
       Failover: PRIMARY
       AliasTarget:
-        DNSName: !Ref PrimaryApiGatewayDomain
-        HostedZoneId: "Z2FDTNDATAQYW2"  # Hosted Zone ID for API Gateway
+        DNSName: !Ref PrimaryRegionalDomainName
+        HostedZoneId: !Ref PrimaryHostedZoneID
 
+  # ✅ Route 53 Failover DNS Record for backup api gateway
   Route53FailoverRecordSecondary:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneName: !Ref HostedZoneName
-      Name: !Ref PrimaryApiGatewayDomain
+      Name: !Ref DomainName
       Type: A
-      SetIdentifier: "Secondary"
+      SetIdentifier: !Sub ${AWS::Region}-failover
       Failover: SECONDARY
       AliasTarget:
-        DNSName: "BackupApiGatewayDomain"
-        HostedZoneId: "Z2FDTNDATAQYW2"  # Hosted Zone ID for API Gateway
+        DNSName: !Ref BackupRegionalDomainName
+        HostedZoneId: !Ref BackupHostedZoneID
 
-  CloudWatchAlarm:
+  # ✅ CloudWatch Alarm for Health Check Failure
+  HealthCheckAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: "API Gateway Health Alarm"
-      MetricName: "HealthCheckStatus"
+      AlarmDescription: "Triggers failover if the primary API health check fails"
+      AlarmName: "APIGatewayHealthCheckFailure"
       Namespace: "AWS/Route53"
-      Statistic: "Minimum"
-      Period: 60
-      EvaluationPeriods: 3
+      MetricName: HealthCheckStatus
+      ComparisonOperator: LessThanThreshold
       Threshold: 1
-      ComparisonOperator: "LessThanThreshold"
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
       AlarmActions:
         - !Ref SNSTopic
 
+  # ✅ SNS Topic for Notifications
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: "ApiFailoverNotification"
 
-  SNSSubscription:
+  # ✅ Subscribe Admin Email to SNS Topic
+  SNSSubscriptionEmail:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !Ref SNSTopic
       Protocol: email
-      Endpoint: "AdminEmail"
+      Endpoint: !Ref AdminEmail
 
+  # ✅ Subscribe Lambda to SNS Topic
+  SNSSubscriptionLambda:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SNSTopic
+      Protocol: lambda
+      Endpoint: !GetAtt FailoverLambdaFunction.Arn
+
+  # ✅ Lambda Function for Failover Alerts
   FailoverLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -95,9 +115,9 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          ADMIN_EMAIL: "AdminEmail"
-          PRIMARY_API: !Ref PrimaryApiGatewayDomain
-          SECONDARY_API: "BackupApiGatewayDomain"
+          ADMIN_EMAIL: !Ref AdminEmail
+          PRIMARY_API: !Ref DomainName
+          BACKUP_API: !Ref BackupRegionalDomainName
           SNS_TOPIC_ARN: !Ref SNSTopic
       Code:
         ZipFile: |
@@ -108,9 +128,7 @@ Resources:
           sns = boto3.client('sns')
           def lambda_handler(event, context):
               admin_email = os.environ['ADMIN_EMAIL']
-              primary_api = os.environ['PRIMARY_API']
-              secondary_api = os.environ['SECONDARY_API']
-              message = f"Primary API ({primary_api}) is down. Failover to Secondary API ({secondary_api}) initiated."
+              message = f"Primary API is down. Failover to Secondary API initiated."
               response = sns.publish(
                   TopicArn=os.environ['SNS_TOPIC_ARN'],
                   Message=message,
@@ -121,6 +139,7 @@ Resources:
                   'body': json.dumps('Failover Notification Sent')
               }
 
+  # ✅ Failover lambda function role
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:

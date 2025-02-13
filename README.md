@@ -10,73 +10,79 @@ The project folder also includes a `template.yml` file. You can use this [SAM](h
 * [SAM CLI](https://github.com/awslabs/aws-sam-cli)
 * [Gradle](https://gradle.org/) or [Maven](https://maven.apache.org/)
 
-## Building the project
-You can use the SAM CLI to quickly build the project
+## Project Workflow
+1. Register a domain on AWS Route 53 (e.g. photoblog.com)
+2. Create AWS ACM certificate for primary and backup region.
+- Parameters include:
+  - DOMAIN_NAME: The domain name for the ACM certificate (e.g., *.photoblog.com)
+  - HOSTED_ZONE_ID: The Route 53 Hosted Zone (e.g. photoblog.com)
+  - REGION: Deploy to both primary and backup region (e.g. primary region: eu-central-1, backup region: eu-west-1)
+NB: The template also creates a route 53 record
+```
+aws cloudformation deploy \
+--template-file acm-certificate.yml \
+--stack-name "acm-certificate" \
+--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+--parameter-overrides \
+  DomainName=${DOMAIN_NAME} \
+  HostedZoneId=${HOSTED_ZONE_ID} \
+--region ${REGION}
+```
+- To get the list of certificates (Replace <region> with the appropriate region):
+```
+aws acm list-certificates --region <region>
+```
+2. You can use the SAM CLI to quickly build the project
 ```bash
-$ mvn archetype:generate -DartifactId=photo-blog-app -DarchetypeGroupId=com.amazonaws.serverless.archetypes -DarchetypeArtifactId=aws-serverless-jersey-archetype -DarchetypeVersion=2.1.1 -DgroupId=org.example -Dversion=1.0-SNAPSHOT -Dinteractive=false
 $ cd photo-blog-app
 $ sam build
-Building resource 'PhotoBlogAppFunction'
-Running JavaGradleWorkflow:GradleBuild
-Running JavaGradleWorkflow:CopyArtifacts
-
-Build Succeeded
-
-Built Artifacts  : .aws-sam/build
-Built Template   : .aws-sam/build/template.yaml
-
-Commands you can use next
-=========================
-[*] Invoke Function: sam local invoke
-[*] Deploy: sam deploy --guided
 ```
-
-## Testing locally with the SAM CLI
-
-From the project root folder - where the `template.yml` file is located - start the API with the SAM CLI.
-
+3. To deploy the application in your AWS account, you can use the SAM CLI's guided deployment process and follow the instructions on the screen
+- Parameters include:
+  - FrontendDevHost: The hosted frontend
+  - FrontendProdHost: The localhost of my frontend
+  - PhotoBlogPrimaryBucket: Primary bucket for s3 bucket
+  - PhotoBlogBackupBucket: Backup bucket for s3 bucket
+  - PrimaryRegion: Primary region name
+  - BackupRegion: Backup region name
+  - PrimaryDomainName: Domain name to be used in your primary api gateway (e.g. primary.photoblog.com)
+  - BackupDomainName: Domain name to be used in your secondary api gateway (e.g. secondary.photoblog.com)
+  - PrimaryACMCertificate: ACM certificate arn in your primary region
+  - BackupACMCertificate: ACM certificate arn in your backup region
+  - DynamoDBGlobalTable: DynamoDB global table
 ```bash
-$ sam local start-api
-
-...
-Mounting com.amazonaws.serverless.archetypes.StreamLambdaHandler::handleRequest (java11) at http://127.0.0.1:3000/{proxy+} [OPTIONS GET HEAD POST PUT DELETE PATCH]
-...
-```
-
-Using a new shell, you can send a test ping request to your API:
-
-```bash
-$ curl -s http://127.0.0.1:3000/ping | python -m json.tool
-
-{
-    "pong": "Hello, World!"
-}
-``` 
-
-## Deploying to AWS
-To deploy the application in your AWS account, you can use the SAM CLI's guided deployment process and follow the instructions on the screen
-
-```
 $ sam deploy --guided
 ```
-
-Once the deployment is completed, the SAM CLI will print out the stack's outputs, including the new application URL. You can use `curl` or a web browser to make a call to the URL
-
+5. Deploy route 53 failover.
+- Use this command to get domain names and its properties.
+NB: Get configuration for both primary and back region. Replace <region> with the appropriate region
 ```
-...
--------------------------------------------------------------------------------------------------------------
-OutputKey-Description                        OutputValue
--------------------------------------------------------------------------------------------------------------
-PhotoBlogAppApi - URL for application            https://xxxxxxxxxx.execute-api.us-west-2.amazonaws.com/Prod/pets
--------------------------------------------------------------------------------------------------------------
+aws apigateway get-domain-names --region <region>
 ```
-
-Copy the `OutputValue` into a browser or use curl to test your first request:
+- Parameters include:
+  - PRIMARY_CUSTOM_DOMAIN_NAME: Custom domain name used for primary api gateway (e.g. primary.photoblog.com)
+  - PRIMARY_REGIONAL_DOMAIN_NAME: Regional domain name for primary api gateway (e.g. xxxx.execute-api.<region>.amazonaws.com )
+  - PRIMARY_HOSTED_ZONE_ID: Hosted zone ID (e.g. for eu-central-1 use Z1U9ULNL0V5AJ3)
+  - BACKUP_CUSTOM_DOMAIN_NAME: Custom domain name used for secondary api gateway (e.g. secondary.photoblog.com)
+  - BACKUP_REGIONAL_DOMAIN_NAME: Regional domain name for secondary api gateway (e.g. xxxx.execute-api.<region>.amazonaws.com )
+  - BACKUP_HOSTED_ZONE_ID: Hosted zone ID (e.g. for eu-west-1 use ZLY8HYME6SFDD)
+  - ADMIN_EMAIL: Email to send notification once there is a failover (e.g. name@example.com)
+  - HOSTED_ZONE_NAME: The name of the Route 53 hosted zone (must end with a dot e.g. photoblog.com.)
+  - REGION: Region to deploy the stack (e.g. eu-central-1)
 
 ```bash
-$ curl -s https://xxxxxxx.execute-api.us-west-2.amazonaws.com/Prod/ping | python -m json.tool
-
-{
-    "pong": "Hello, World!"
-}
+aws cloudformation deploy \
+--template-file route53-api-failover.yml \
+--stack-name "route53-api-failover" \
+--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+--parameter-overrides \
+  PrimaryCustomApiDomainName=${PRIMARY_CUSTOM_DOMAIN_NAME} \
+  BackupCustomApiDomainName=${BACKUP_CUSTOM_DOMAIN_NAME} \
+  PrimaryRegionalDomainName=${PRIMARY_REGIONAL_DOMAIN_NAME} \
+  BackupRegionalDomainName=${BACKUP_REGIONAL_DOMAIN_NAME} \
+  AdminEmail=${ADMIN_EMAIL} \
+  PrimaryHostedZoneID=${PRIMARY_HOSTED_ZONE_ID} \
+  BackupHostedZoneID=${BACKUP_HOSTED_ZONE_ID} \
+  HostedZoneName=${HOSTED_ZONE_NAME} \
+--region ${REGION}
 ```

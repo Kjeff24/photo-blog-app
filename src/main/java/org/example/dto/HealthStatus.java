@@ -3,5 +3,5 @@ package org.example.dto;
 import lombok.Builder;
 
 @Builder
-public record HealthStatus(String status) {
+public record HealthStatus(String status, String region) {
 }

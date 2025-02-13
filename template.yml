@@ -50,6 +50,33 @@ Conditions:
 
 
 Resources:
+  # API Gateway
+  PhotoBlogApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+
+  # Custom Domain for API Gateway
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !Ref DomainName
+      RegionalCertificateArn: !If
+        - IsPrimaryRegion
+        - !Ref PrimaryACMCertificateArn
+        - !Ref BackupACMCertificateArn
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # Base path for custom domain
+  CustomDomainBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !Sub ${PhotoBlogApi}
+      Stage: "Prod"
+
   ## Lambda function for API-GATEWAY
   PhotoBlogAppFunction:
     Type: AWS::Serverless::Function
@@ -104,6 +131,7 @@ Resources:
         ProxyResource:
           Type: Api
           Properties:
+            RestApiId: !Ref PhotoBlogApi
             Path: /{proxy+}
             Method: any
       Environment:
@@ -119,27 +147,6 @@ Resources:
           COGNITO_USER_POOL_ID: !Ref UserPool
           FRONTEND_DEV_URL: !Ref FrontendDevHost
           FRONTEND_PROD_URL: !Ref FrontendProdHost
-
-  # Custom Domain for API Gateway
-  ApiGatewayDomainName:
-    Type: AWS::ApiGateway::DomainName
-    Properties:
-      DomainName: !Ref DomainName
-      RegionalCertificateArn: !If
-        - IsPrimaryRegion
-        - !Ref PrimaryACMCertificateArn
-        - !Ref BackupACMCertificateArn
-      EndpointConfiguration:
-        Types:
-          - REGIONAL
-
-  # Base path for custom domain
-  CustomDomainBasePathMapping:
-    Type: AWS::ApiGateway::BasePathMapping
-    Properties:
-      DomainName: !Ref ApiGatewayDomainName
-      RestApiId: !Sub ${ServerlessRestApi}
-      Stage: "Prod"
 
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:
@@ -675,7 +682,7 @@ Resources:
 Outputs:
   PhotoBlogAppApi:
     Description: URL for application
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+    Value: !Sub 'https://${PhotoBlogApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
     Export:
       Name: PhotoBlogAppApi
 

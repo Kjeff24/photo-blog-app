@@ -2,7 +2,6 @@
 # https://github.com/aws/serverless-java-container/issues/134
 logging.level.root: WARN
 spring.security.oauth2.resourceserver.jwt.issuer-uri: https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
-management.endpoint.web.exposure.include: "*"
 
 app:
   frontend.uri:

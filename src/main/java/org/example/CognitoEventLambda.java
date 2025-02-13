@@ -4,10 +4,13 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.CognitoUserPoolPostAuthenticationEvent;
 import com.amazonaws.services.lambda.runtime.events.CognitoUserPoolPostConfirmationEvent;
-import com.amazonaws.services.lambda.runtime.events.CognitoUserPoolPreTokenGenerationEventV2;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.SubscribeRequest;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -20,18 +23,23 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class CognitoEventLambda implements RequestHandler<Map<String, Object>, Map<String, Object>> {
+
+    private final String dynamodbTable;
     private final String topicArn;
     private final String taskQueue;
     private final SnsClient snsClient;
     private final SqsClient sqsClient;
+    private final DynamoDbClient dynamoDbClient;
     private final ObjectMapper objectMapper;
 
     public CognitoEventLambda() {
         snsClient = SnsClient.create();
         sqsClient = SqsClient.create();
+        dynamoDbClient = DynamoDbClient.create();
         topicArn = System.getenv("NOTIFICATION_TOPIC_ARN");
         taskQueue = System.getenv("TASK_QUEUE");
         objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        dynamodbTable = System.getenv("DYNAMODB_TABLE");
     }
 
     @Override
@@ -46,6 +54,7 @@ public class CognitoEventLambda implements RequestHandler<Map<String, Object>, M
             } else if ("PostConfirmation_ConfirmSignUp".equals(triggerSource)) {
                 CognitoUserPoolPostConfirmationEvent postConfirmationEvent = objectMapper.convertValue(event, CognitoUserPoolPostConfirmationEvent.class);
                 subscribeUserToSNS(postConfirmationEvent);
+                saveUser(postConfirmationEvent);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -82,6 +91,28 @@ public class CognitoEventLambda implements RequestHandler<Map<String, Object>, M
                 .build();
 
         snsClient.subscribe(request);
+    }
+
+    private void saveUser(CognitoUserPoolPostConfirmationEvent event) {
+        String email = event.getRequest().getUserAttributes().get("email");
+        String fullName = event.getRequest().getUserAttributes().get("name");
+        try {
+            PutItemRequest putItemRequest = PutItemRequest.builder()
+                    .tableName(dynamodbTable)
+                    .item(Map.of(
+                            "pk", AttributeValue.builder().s(email).build(),
+                            "sk", AttributeValue.builder().s(fullName).build(),
+                            "type", AttributeValue.builder().n("user").build())
+                    )
+                    .conditionExpression("attribute_not_exists(pk)")
+                    .build();
+
+            dynamoDbClient.putItem(putItemRequest);
+        } catch (ConditionalCheckFailedException e) {
+            System.err.println("User already exists: " + email);
+        } catch (DynamoDbException e) {
+            System.err.println("Error saving user: " + e.getMessage());
+        }
     }
 
 }

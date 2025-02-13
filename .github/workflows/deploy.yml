@@ -13,12 +13,10 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   PRIMARY_REGION: ${{ secrets.AWS_REGION }}
   BACKUP_REGION: ${{ secrets.BACKUP_REGION }}
-  PRIMARY_TEST_DOMAIN_NAME: ${{ secrets.PRIMARY_TEST_DOMAIN_NAME }}
-  PRIMARY_PROD_DOMAIN_NAME: ${{ secrets.PRIMARY_PROD_DOMAIN_NAME }}
-  BACKUP_TEST_DOMAIN_NAME: ${{ secrets.BACKUP_TEST_DOMAIN_NAME }}
-  BACKUP_PROD_DOMAIN_NAME: ${{ secrets.BACKUP_PROD_DOMAIN_NAME }}\
-  PRIMARY_ACM_CERTIFICATE_ARN: ${{ secrets.PRIMARY_ACM_CERTIFICATE_ARN }}\
-  BACKUP_ACM_CERTIFICATE_ARN: ${{ secrets.BACKUP_ACM_CERTIFICATE_ARN }}\
+  TEST_DOMAIN_NAME: ${{ secrets.TEST_DOMAIN_NAME }}
+  PROD_DOMAIN_NAME: ${{ secrets.PROD_DOMAIN_NAME }}
+  PRIMARY_ACM_CERTIFICATE_ARN: ${{ secrets.PRIMARY_ACM_CERTIFICATE_ARN }}
+  BACKUP_ACM_CERTIFICATE_ARN: ${{ secrets.BACKUP_ACM_CERTIFICATE_ARN }}
 
 jobs:
   build:
@@ -102,11 +100,10 @@ jobs:
             PARAM_OVERRIDES="$PARAM_OVERRIDES BackupACMCertificateArn=$BACKUP_ACM_CERTIFICATE_ARN"
           fi
           
-          
           if [ "$GITHUB_REF" == "refs/heads/test" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_TEST_DOMAIN_NAME BackupDomainName=$BACKUP_TEST_DOMAIN_NAME"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES DomainName=$TEST_DOMAIN_NAME"
           else
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_PROD_DOMAIN_NAME BackupDomainName=$BACKUP_PROD_DOMAIN_NAME"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES DomainName=$PROD_DOMAIN_NAME"
           fi
           
           if [ -n "$PARAM_OVERRIDES" ]; then
@@ -168,9 +165,9 @@ jobs:
           fi
           
           if [ "$GITHUB_REF" == "refs/heads/test" ]; then
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_TEST_DOMAIN_NAME BackupDomainName=$BACKUP_TEST_DOMAIN_NAME"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES DomainName=$TEST_DOMAIN_NAME"
           else
-            PARAM_OVERRIDES="$PARAM_OVERRIDES PrimaryDomainName=$PRIMARY_PROD_DOMAIN_NAME BackupDomainName=$BACKUP_PROD_DOMAIN_NAME"
+            PARAM_OVERRIDES="$PARAM_OVERRIDES DomainName=$PROD_DOMAIN_NAME"
           fi
           
           if [ -n "$PARAM_OVERRIDES" ]; then

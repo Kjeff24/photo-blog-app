@@ -259,10 +259,27 @@ Resources:
                 - sqs:sendmessage
               Resource:
                 - !GetAtt TaskQueue.Arn
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:GetItem
+            Resource:
+              - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
       Environment:
         Variables:
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopic
           TASK_QUEUE: !Ref TaskQueue
+          DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
+      Events:
+        CognitoEvents:
+          Type: Cognito
+          Properties:
+            UserPool: !Ref UserPool
+            Trigger:
+              - PostConfirmation
+              - PostAuthentication
 
   # Lambda Function for creating recycle bin folder
   #  CloudFormationCustomResourceLambda:
@@ -361,6 +378,13 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           TemporaryPasswordValidityDays: 7
+      AdminCreateUserConfig:
+        InviteMessageTemplate: !If
+          - IsBackupRegion
+          -
+            EmailSubject: "Password Reset"
+            EmailMessage: "Hello {username}, to enhance security reset your password. Your temporary password is {####}."
+          - !Ref "AWS::NoValue"
       LambdaConfig:
         PostConfirmation: !GetAtt CognitoEventLambda.Arn
         PostAuthentication: !GetAtt CognitoEventLambda.Arn
@@ -650,15 +674,6 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:s3:::${PhotoBlogPrimaryBucket}/*'
                   - !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
-
-  # Permission for Cognito to invoke the Lambda function
-  CognitoLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt CognitoEventLambda.Arn
-      Action: lambda:InvokeFunction
-      Principal: cognito-idp.amazonaws.com
-      SourceArn: !GetAtt UserPool.Arn
 
 Outputs:
   PhotoBlogAppApi:

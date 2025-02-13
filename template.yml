@@ -344,7 +344,7 @@ Resources:
   BackupPrimaryBucket:
     Type: AWS::S3::Bucket
     Condition: IsPrimaryRegion
-    DeletionPolicy: Retain
+#    DeletionPolicy: Retain
     Properties:
       BucketName: !Ref PhotoBlogBackupBucket
       PublicAccessBlockConfiguration:

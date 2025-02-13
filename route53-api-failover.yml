@@ -31,7 +31,7 @@ Resources:
     Properties:
       HealthCheckConfig:
         Type: HTTPS
-        ResourcePath: "actuator/health"
+        ResourcePath: "/health"
         FullyQualifiedDomainName: !Ref DomainName
         RequestInterval: 30
         FailureThreshold: 3

@@ -45,8 +45,7 @@ $ sam build
   - PhotoBlogBackupBucket: Backup bucket for s3 bucket
   - PrimaryRegion: Primary region name
   - BackupRegion: Backup region name
-  - PrimaryDomainName: Domain name to be used in your primary api gateway (e.g. primary.photoblog.com)
-  - BackupDomainName: Domain name to be used in your secondary api gateway (e.g. secondary.photoblog.com)
+  - DomainName: Domain name to be used in your primary and backup api gateway (e.g. api.photoblog.com)
   - PrimaryACMCertificate: ACM certificate arn in your primary region
   - BackupACMCertificate: ACM certificate arn in your backup region
   - DynamoDBGlobalTable: DynamoDB global table
@@ -60,10 +59,9 @@ NB: Get configuration for both primary and back region. Replace <region> with th
 aws apigateway get-domain-names --region <region>
 ```
 - Parameters include:
-  - PRIMARY_CUSTOM_DOMAIN_NAME: Custom domain name used for primary api gateway (e.g. primary.photoblog.com)
+  - DOMAIN_NAME: Custom domain name used for primary api gateway (e.g. api.photoblog.com)
   - PRIMARY_REGIONAL_DOMAIN_NAME: Regional domain name for primary api gateway (e.g. xxxx.execute-api.<region>.amazonaws.com )
   - PRIMARY_HOSTED_ZONE_ID: Hosted zone ID (e.g. for eu-central-1 use Z1U9ULNL0V5AJ3)
-  - BACKUP_CUSTOM_DOMAIN_NAME: Custom domain name used for secondary api gateway (e.g. secondary.photoblog.com)
   - BACKUP_REGIONAL_DOMAIN_NAME: Regional domain name for secondary api gateway (e.g. xxxx.execute-api.<region>.amazonaws.com )
   - BACKUP_HOSTED_ZONE_ID: Hosted zone ID (e.g. for eu-west-1 use ZLY8HYME6SFDD)
   - ADMIN_EMAIL: Email to send notification once there is a failover (e.g. name@example.com)
@@ -76,8 +74,7 @@ aws cloudformation deploy \
 --stack-name "route53-api-failover" \
 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
 --parameter-overrides \
-  PrimaryCustomApiDomainName=${PRIMARY_CUSTOM_DOMAIN_NAME} \
-  BackupCustomApiDomainName=${BACKUP_CUSTOM_DOMAIN_NAME} \
+  DomainName=${DOMAIN_NAME} \
   PrimaryRegionalDomainName=${PRIMARY_REGIONAL_DOMAIN_NAME} \
   BackupRegionalDomainName=${BACKUP_REGIONAL_DOMAIN_NAME} \
   AdminEmail=${ADMIN_EMAIL} \

@@ -385,9 +385,6 @@ Resources:
             EmailSubject: "Password Reset"
             EmailMessage: "Hello {username}, to enhance security reset your password. Your temporary password is {####}."
           - !Ref "AWS::NoValue"
-      LambdaConfig:
-        PostConfirmation: !GetAtt CognitoEventLambda.Arn
-        PostAuthentication: !GetAtt CognitoEventLambda.Arn
 
   # Cognito User Pool Client
   UserPoolClient:

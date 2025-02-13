@@ -29,6 +29,15 @@ Parameters:
     Description: "Alarm name"
 
 Resources:
+
+#  # Base path for custom domain
+#  CustomDomainBasePathMapping:
+#    Type: AWS::ApiGateway::BasePathMapping
+#    Properties:
+#      DomainName: !Ref ApiGatewayDomainName
+#      RestApiId: !Sub ${PhotoBlogApi}
+#      Stage: "Prod"
+
   # ✅ Route 53 Health Check for Primary API
   Route53HealthCheck:
     Type: AWS::Route53::HealthCheck

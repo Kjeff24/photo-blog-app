@@ -19,14 +19,21 @@ Parameters:
     Description: "The name of the Route 53 hosted zone (must end with a dot e.g. photoblog.com.)"
   PrimaryHostedZoneID:
     Type: String
-    Description: "eu-central-1 route 53 hosted zone ID"
+    Description: "primary region route 53 hosted zone ID"
   BackupHostedZoneID:
     Type: String
-    Description: "eu-west-1 route 53 hosted zone ID"
-  AlarmName:
+    Description: "backup region route 53 hosted zone ID"
+  BackupRegion:
     Type: String
-    Default: "APIGatewayHealthCheckFailure"
-    Description: "Alarm name"
+    Default: "eu-west-1"
+    Description: "Backup region"
+  BackupRegionUserPoolId:
+    Type: String
+    Description: "User pool ID in backup region"
+  GlobalDynamodbTable:
+    Type: String
+    Default: "dynamodb-global-table"
+    Description: "Global DynamoDB table name"
 
 Resources:
   # ✅ Route 53 Health Check for Primary API
@@ -48,7 +55,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmDescription: "Triggers failover if the primary API health check fails"
-      AlarmName: !Ref AlarmName
+      AlarmName: "APIGatewayHealthCheckFailure"
       Namespace: "AWS/Route53"
       MetricName: HealthCheckStatus
       Dimensions:
@@ -123,28 +130,69 @@ Resources:
       Environment:
         Variables:
           ADMIN_EMAIL: !Ref AdminEmail
-          PRIMARY_API: !Ref DomainName
-          BACKUP_API: !Ref BackupRegionalDomainName
           SNS_TOPIC_ARN: !Ref SNSTopic
+          BACKUP_REGION: !Ref BackupRegion
+          BACKUP_REGION_USER_POOL_ID: !Ref BackupRegionUserPoolId
+          DYNAMODB_TABLE: !Ref GlobalDynamodbTable
       Code:
         ZipFile: |
           import os
           import boto3
           import json
 
-          sns = boto3.client('sns')
           def lambda_handler(event, context):
-              admin_email = os.environ['ADMIN_EMAIL']
-              message = f"Primary API is down. Failover to Secondary API initiated."
-              response = sns.publish(
-                  TopicArn=os.environ['SNS_TOPIC_ARN'],
-                  Message=message,
-                  Subject="API Gateway Failover Alert"
-              )
-              return {
-                  'statusCode': 200,
-                  'body': json.dumps('Failover Notification Sent')
-              }
+            admin_email = os.environ['ADMIN_EMAIL']
+            backup_region = os.environ['BACKUP_REGION']
+            backup_user_pool_id = os.environ['BACKUP_REGION_USER_POOL_ID']
+            global_dynamo_db_table = os.environ['DYNAMODB_TABLE']
+            sns_topic_arn = os.environ['SNS_TOPIC_ARN']
+          
+            # Initialize clients
+            sns = boto3.client('sns')
+            dynamodb = boto3.client('dynamodb', region_name=backup_region)
+            cognito = boto3.client('cognito-idp', region_name=backup_region)
+          
+          
+            # Notify admin of failover
+            message = f"Primary API is down. Failover to Secondary API initiated."
+            response = sns.publish(
+                TopicArn=sns_topic_arn,
+                Message=message,
+                Subject="API Gateway Failover Alert"
+            )
+            
+            # Scan DynamoDB table using the specified index
+            response = dynamodb.scan(
+                TableName=dynamodb_table,
+                IndexName=TypeIndex
+            )
+          
+          # Process each item
+          for item in response.get('Items', []):
+              email = item.get('pk', {}).get('S')
+              full_name = item.get('sk', {}).get('S')
+
+              if email and full_name:
+                # Create a new user in the Cognito User Pool
+                try:
+                  cognito.admin_create_user(
+                    UserPoolId=backup_user_pool_id,
+                    Username=email,
+                    UserAttributes=[
+                        {'Name': 'email', 'Value': email},
+                        {'Name': 'name', 'Value': full_name}
+                    ]
+                  )
+                except cognito.exceptions.UsernameExistsException:
+                  print(f"User {email} already exists.")
+                except Exception as e:
+                  print(f"Error creating user {email}: {e}")
+        
+          
+            return {
+                'statusCode': 200,
+                'body': json.dumps('Failover Notification Sent')
+            }
 
   # ✅ Failover lambda function role
   LambdaExecutionRole:

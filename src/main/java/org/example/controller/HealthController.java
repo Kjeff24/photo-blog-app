@@ -28,7 +28,7 @@ public class HealthController {
 
     @PostMapping("/toggle/{status}")
     @ResponseStatus(HttpStatus.OK)
-    public String toggleHealth(@PathVariable boolean status) {
+    public String toggleHealth(@PathVariable("status") boolean status) {
         isHealthy = status;
         return "Health status set to: " + (status ? "Healthy" : "Unhealthy");
     }

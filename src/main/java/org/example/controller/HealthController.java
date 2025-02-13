@@ -2,6 +2,7 @@ package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dto.HealthStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,14 +16,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/health")
 @RequiredArgsConstructor
 public class HealthController {
+
+    @Value("${aws.region}")
+    private String region;
     private boolean isHealthy = true; // Default to healthy
 
     @GetMapping
     public ResponseEntity<?> checkHealth() {
         if (isHealthy) {
-            return ResponseEntity.ok(HealthStatus.builder().status("UP").build());
+            return ResponseEntity.ok(HealthStatus.builder().status("UP").region(region).build());
         } else {
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(HealthStatus.builder().status("DOWN").build());
+            return ResponseEntity
+                    .status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(HealthStatus.builder().status("DOWN").region(region).build());
         }
     }
 

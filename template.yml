@@ -677,7 +677,7 @@ Outputs:
 
   CognitoLoginURL:
     Description: Cognito User Pool Application Client Hosted Login UI URL
-    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&redirect_uri=${FrontendProdHost}'
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&redirect_uri=${FrontendProdHost}/oauth2/code'
 
   CognitoUserPoolClientInfo:
     Description: AWS CLI command for Amazon Cognito User Pool information

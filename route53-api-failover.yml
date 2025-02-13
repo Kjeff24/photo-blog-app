@@ -46,7 +46,7 @@ Resources:
       HostedZoneName: !Ref HostedZoneName
       Name: !Ref DomainName
       Type: A
-      SetIdentifier: !Sub ${AWS::Region}-failover
+      SetIdentifier: "Primary"
       HealthCheckId: !Ref Route53HealthCheck
       Failover: PRIMARY
       AliasTarget:
@@ -60,7 +60,7 @@ Resources:
       HostedZoneName: !Ref HostedZoneName
       Name: !Ref DomainName
       Type: A
-      SetIdentifier: !Sub ${AWS::Region}-failover
+      SetIdentifier: "Secondary"
       Failover: SECONDARY
       AliasTarget:
         DNSName: !Ref BackupRegionalDomainName

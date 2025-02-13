@@ -133,6 +133,14 @@ Resources:
         Types:
           - REGIONAL
 
+  # Base path for custom domain
+  CustomDomainBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !Sub ${ServerlessRestApi}
+      Stage: !Sub ${ServerlessRestApiProdStage}
+
   # Lambda Function for SQS Notification Processing
   ImageProcessingLambda:
     Type: AWS::Serverless::Function

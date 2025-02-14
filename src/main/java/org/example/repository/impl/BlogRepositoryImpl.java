@@ -61,7 +61,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                         .filterExpression(filterExpression))
                 .stream()
                 .flatMap(page -> page.items().stream())
-                .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
     }
 
@@ -79,7 +79,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                 .stream()
                 .map(Page::items)
                 .flatMap(List::stream)
-                .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
     }
 
@@ -115,7 +115,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                 .stream()
                 .map(Page::items)
                 .flatMap(List::stream)
-                .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
     }
 

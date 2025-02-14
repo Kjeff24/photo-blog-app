@@ -329,13 +329,13 @@ Resources:
       ReplicationConfiguration:
         Role: !GetAtt S3ReplicationRole.Arn
         Rules:
-          - Destination:
-              Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
-            Status: Enabled
+          - Status: Enabled
             Filter:
-              Prefix: {}
+              Prefix: ""
             DeleteMarkerReplication:
               Status: Enabled
+            Destination:
+              Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
 
   BackupPrimaryBucket:
     Type: AWS::S3::Bucket

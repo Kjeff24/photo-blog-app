@@ -220,19 +220,16 @@ Resources:
 
               # Get existing environment variables
               app_details = amplify_client.get_app(appId=amplify_app_id)
-              amplify_domain = app_details['app']['defaultDomain']
               env_vars = app_details['app']['environmentVariables']
           
               # Construct endpoints
               USER_POOL_DOMAIN_URI = f"https://{domain}.auth.{backup_region}.amazoncognito.com"
-              REDIRECT_URI = f"{amplify_domain}/oauth2/code"
           
               # Update environment variables
               env_vars.update({
                 "USER_POOL_DOMAIN_URI": USER_POOL_DOMAIN_URI,
                 "CLIENT_ID": client_id,
-                "CLIENT_SECRET" : client_secret,
-                "REDIRECT_URI": REDIRECT_URI
+                "CLIENT_SECRET" : client_secret
               })
           
               # Apply updated variables in Amplify

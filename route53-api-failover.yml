@@ -34,6 +34,12 @@ Parameters:
     Type: String
     Default: "dynamodb-global-table"
     Description: "Global DynamoDB table name"
+  AmplifyBranchName:
+    Type: String
+    Description: "Branch name"
+  AmplifyAppId:
+    Type: String
+    Description: "Frontend amplify app id"
 
 Resources:
   # ✅ Route 53 Health Check for Primary API
@@ -131,76 +137,151 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          ADMIN_EMAIL: !Ref AdminEmail
           SNS_TOPIC_ARN: !Ref SNSTopic
           BACKUP_REGION: !Ref BackupRegion
           BACKUP_REGION_USER_POOL_ID: !Ref BackupRegionUserPoolId
           DYNAMODB_TABLE: !Ref GlobalDynamodbTable
+          AMPLIFY_APP_ID : !Ref AmplifyAppId
+          BRANCH_NAME: !Ref AmplifyBranchName
       Code:
         ZipFile: |
           import os
           import boto3
           import json
-
-          def lambda_handler(event, context):
-            admin_email = os.environ['ADMIN_EMAIL']
-            backup_region = os.environ['BACKUP_REGION']
-            backup_user_pool_id = os.environ['BACKUP_REGION_USER_POOL_ID']
-            global_dynamo_db_table = os.environ['DYNAMODB_TABLE']
-            sns_topic_arn = os.environ['SNS_TOPIC_ARN']
           
-            # Initialize clients
-            sns = boto3.client('sns')
-            dynamodb = boto3.client('dynamodb', region_name=backup_region)
-            cognito = boto3.client('cognito-idp', region_name=backup_region)
+          # Initialize AWS clients
+          def initialize_clients(backup_region):
+            return {
+              'sns': boto3.client('sns'),
+              'dynamodb': boto3.client('dynamodb', region_name=backup_region),
+              'cognito': boto3.client('cognito-idp', region_name=backup_region),
+              'amplify': boto3.client('amplify', region_name=backup_region)
+            }
           
-          
-            # Notify admin of failover
-            message = f"Primary API is down. Failover to Secondary API initiated."
-            response = sns.publish(
-            TopicArn=sns_topic_arn,
-            Message=message,
-            Subject="API Gateway Failover Alert"
-            )
-            
-            # Scan DynamoDB table using the specified index
-            response = dynamodb.query(
-            TableName=global_dynamo_db_table,
-            IndexName="TypeIndex",
-            KeyConditionExpression="#t = :typeValue",
-            ExpressionAttributeNames={
-            "#t": "type"
-          },
-            ExpressionAttributeValues={
-            ":typeValue": {"S": "user"}
-          }
+          # Notify admin of failover
+          def notify_admin(sns_client, sns_topic_arn):
+            message = "Primary API is down. Failover to Secondary API initiated."
+            sns_client.publish(
+              TopicArn=sns_topic_arn,
+              Message=message,
+              Subject="API Gateway Failover Alert"
             )
           
-            # Process each item
-            for item in response.get('Items', []):
-              email = item.get('pk', {}).get('S')
-              full_name = item.get('sk', {}).get('S')
-              
+          # Query DynamoDB for user data
+          def query_dynamodb(dynamodb_client, table_name):
+            return dynamodb_client.query(
+              TableName=table_name,
+              IndexName="TypeIndex",
+              KeyConditionExpression="#t = :typeValue",
+              ExpressionAttributeNames={"#t": "type"},
+              ExpressionAttributeValues={":typeValue": {"S": "user"}}
+            )
+          
+          # Create users in Cognito
+          def create_cognito_users(cognito_client, user_pool_id, users):
+            for user in users:
+              email = user.get('pk', {}).get('S')
+              full_name = user.get('sk', {}).get('S')
               if email and full_name:
-                # Create a new user in the Cognito User Pool
                 try:
-                  cognito.admin_create_user(
-                    UserPoolId=backup_user_pool_id,
+                  cognito_client.admin_create_user(
+                    UserPoolId=user_pool_id,
                     Username=email,
                     UserAttributes=[
                       {'Name': 'email', 'Value': email},
                       {'Name': 'name', 'Value': full_name}
                     ]
                   )
-                except cognito.exceptions.UsernameExistsException:
+                except cognito_client.exceptions.UsernameExistsException:
                   print(f"User {email} already exists.")
                 except Exception as e:
                   print(f"Error creating user {email}: {e}")
           
+          # Update Amplify environment variables
+          def update_amplify(amplify_client, cognito_client, amplify_app_id, backup_user_pool_id, backup_region, branch_name):
+            try:
+              # Get User Pool details
+              user_pool_info = cognito_client.describe_user_pool(UserPoolId=backup_user_pool_id)
+              domain = user_pool_info['UserPool'].get('Domain')
+      
+              # Get User Pool App Client details
+              app_clients = cognito_client.list_user_pool_clients(UserPoolId=backup_user_pool_id, MaxResults=10)
+              if not app_clients['UserPoolClients']:
+                  raise Exception("No app clients found in the user pool.")
+              client_id = app_clients['UserPoolClients'][0]['ClientId']
           
+              # Get existing environment variables
+              app_details = amplify_client.get_app(appId=amplify_app_id)
+              amplify_domain = app_details['app']['defaultDomain']
+              env_vars = app_details['app']['environmentVariables']
+          
+              # Construct endpoints
+              USER_POOL_DOMAIN_URI = f"https://{domain}.auth.{backup_region}.amazoncognito.com"
+              TOKEN_ENDPOINT = f"{USER_POOL_DOMAIN_URI}/oauth2/token"
+              LOGIN_ENDPOINT = f"{USER_POOL_DOMAIN_URI}/login"
+              REDIRECT_URI = f"{amplify_domain}/oauth2/code"
+          
+              # Update environment variables
+              env_vars.update({
+                "USER_POOL_DOMAIN_URI": USER_POOL_DOMAIN_URI,
+                "TOKEN_ENDPOINT": TOKEN_ENDPOINT,
+                "LOGIN_ENDPOINT": LOGIN_ENDPOINT,
+                "CLIENT_ID": client_id,
+                "REDIRECT_URI": REDIRECT_URI
+              })
+          
+              # Apply updated variables in Amplify
+              amplify_client.update_app(
+                appId=amplify_app_id,
+                environmentVariables=env_vars
+              )
+              
+              # Trigger a redeployment in Amplify
+              amplify_client.start_job(
+                appId=amplify_app_id,
+                branchName=branch_name,
+                jobType="RELEASE"
+              )
+            except Exception as e:
+              print(f"Error updating Amplify: {e}")
+          
+          # Main Lambda handler
+          def lambda_handler(event, context):
+            # Load environment variables
+            env_vars = {
+              'backup_region': os.environ['BACKUP_REGION'],
+              'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
+              'dynamodb_table': os.environ['DYNAMODB_TABLE'],
+              'sns_topic_arn': os.environ['SNS_TOPIC_ARN'],
+              'amplify_app_id': os.environ['AMPLIFY_APP_ID'],
+              'branch_name': os.environ['BRANCH_NAME']
+            }
+        
+            # Initialize AWS clients
+            clients = initialize_clients(env_vars['backup_region'])
+        
+            # Notify admin of failover
+            notify_admin(clients['sns'], env_vars['sns_topic_arn'])
+        
+            # Query DynamoDB for user data
+            dynamodb_response = query_dynamodb(clients['dynamodb'], env_vars['dynamodb_table'])
+        
+            # Create users in Cognito
+            create_cognito_users(clients['cognito'], env_vars['backup_user_pool_id'], dynamodb_response.get('Items', []))
+        
+            # Update Amplify environment variables
+            update_amplify(
+              clients['amplify'],
+              clients['cognito'],
+              env_vars['amplify_app_id'],
+              env_vars['backup_user_pool_id'],
+              env_vars['backup_region'],
+              env_vars['branch_name']
+            )
+        
             return {
-                'statusCode': 200,
-                'body': json.dumps('Failover Notification Sent')
+              'statusCode': 200,
+              'body': json.dumps('Failover Notification Sent')
             }
 
 

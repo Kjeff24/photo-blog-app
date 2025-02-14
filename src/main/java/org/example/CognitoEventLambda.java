@@ -102,7 +102,7 @@ public class CognitoEventLambda implements RequestHandler<Map<String, Object>, M
                     .item(Map.of(
                             "pk", AttributeValue.builder().s(email).build(),
                             "sk", AttributeValue.builder().s(fullName).build(),
-                            "type", AttributeValue.builder().n("user").build())
+                            "type", AttributeValue.builder().s("user").build())
                     )
                     .conditionExpression("attribute_not_exists(pk)")
                     .build();

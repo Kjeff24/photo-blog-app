@@ -45,14 +45,28 @@ public class BlogRepositoryImpl implements BlogRepository {
     }
 
     public List<BlogPost> findAll() {
-        return getTable().scan(r -> r.filterExpression(Expression.builder()
-                        .expression("deleteStatus <> :deletedStatus")
-                        .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
-                        .build()))
-                .items().stream()
+        DynamoDbTable<BlogPost> table = getTable();
+
+        DynamoDbIndex<BlogPost> index = table.index("TypeIndex");
+
+        Expression filterExpression = Expression.builder()
+                .expression("deleteStatus <> :deletedStatus")
+                .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
+                .build();
+
+        return index.query(r -> r
+                        .queryConditional(QueryConditional.keyEqualTo(
+                                Key.builder().partitionValue("photo").build()
+                        ))
+                        .filterExpression(filterExpression))
+                .stream()
+                .flatMap(page -> page.items().stream())
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
     }
+
+
+
 
     public List<BlogPost> findAllByUserEmail(String userEmail) {
         DynamoDbIndex<BlogPost> index = getTable().index("OwnerIndex");

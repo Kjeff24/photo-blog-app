@@ -332,6 +332,8 @@ Resources:
           - Destination:
               Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
             Status: Enabled
+            DeleteMarkerReplication:
+              Status: Enabled
             Prefix: ""
 
   BackupPrimaryBucket:

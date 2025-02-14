@@ -332,7 +332,8 @@ Resources:
           - Destination:
               Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
             Status: Enabled
-            Filter: {}
+            Filter:
+              Prefix: ""
             DeleteMarkerReplication:
               Status: Enabled
             Prefix: ""

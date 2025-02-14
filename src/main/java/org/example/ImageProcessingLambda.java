@@ -189,7 +189,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
                         "imageUrl", AttributeValue.builder().s(imageUrl).build(),
                         "uploadDate", AttributeValue.builder().s(uploadDate).build(),
                         "deleteStatus", AttributeValue.builder().n("0").build(),
-                        "type", AttributeValue.builder().n("photo").build())
+                        "type", AttributeValue.builder().s("photo").build())
                 )
                 .build();
 

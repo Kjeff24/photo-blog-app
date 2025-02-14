@@ -286,6 +286,14 @@ Resources:
               'body': json.dumps('Failover Notification Sent')
             }
 
+    # ✅ Permissions for SNS to invoke Lambda
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Ref FailoverLambdaFunction
+      Principal: "sns.amazonaws.com"
+      SourceArn: !Ref SNSTopic
 
   # ✅ Failover lambda function role
   LambdaExecutionRole:
@@ -347,4 +355,5 @@ Resources:
                   - "amplify:StartJob"
                 Resource:
                   - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}"
+                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/*"
 

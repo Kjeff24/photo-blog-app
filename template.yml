@@ -336,7 +336,6 @@ Resources:
               Prefix: ""
             DeleteMarkerReplication:
               Status: Enabled
-            Prefix: ""
 
   BackupPrimaryBucket:
     Type: AWS::S3::Bucket

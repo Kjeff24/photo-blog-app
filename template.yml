@@ -387,7 +387,7 @@ Resources:
           - IsBackupRegion
           -
             EmailSubject: "Password Reset"
-            EmailMessage:Fn::Sub: |
+            EmailMessage:  !Sub |
               Hello {username}, to enhance security, change your password. Your temporary password is {####}
               Please visit ${FrontendProdHost} to login and change password.
           - !Ref "AWS::NoValue"

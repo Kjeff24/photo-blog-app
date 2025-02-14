@@ -210,6 +210,14 @@ Resources:
                   raise Exception("No app clients found in the user pool.")
               client_id = app_clients['UserPoolClients'][0]['ClientId']
           
+              client_details = cognito_client.describe_user_pool_client(
+                UserPoolId=backup_user_pool_id,
+                ClientId=client_id
+              )
+              
+              # Extract client secret
+              client_secret = client_details['UserPoolClient'].get('ClientSecret', 'No secret found')
+
               # Get existing environment variables
               app_details = amplify_client.get_app(appId=amplify_app_id)
               amplify_domain = app_details['app']['defaultDomain']
@@ -217,16 +225,13 @@ Resources:
           
               # Construct endpoints
               USER_POOL_DOMAIN_URI = f"https://{domain}.auth.{backup_region}.amazoncognito.com"
-              TOKEN_ENDPOINT = f"{USER_POOL_DOMAIN_URI}/oauth2/token"
-              LOGIN_ENDPOINT = f"{USER_POOL_DOMAIN_URI}/login"
               REDIRECT_URI = f"{amplify_domain}/oauth2/code"
           
               # Update environment variables
               env_vars.update({
                 "USER_POOL_DOMAIN_URI": USER_POOL_DOMAIN_URI,
-                "TOKEN_ENDPOINT": TOKEN_ENDPOINT,
-                "LOGIN_ENDPOINT": LOGIN_ENDPOINT,
                 "CLIENT_ID": client_id,
+                "CLIENT_SECRET" : client_secret,
                 "REDIRECT_URI": REDIRECT_URI
               })
           

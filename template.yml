@@ -662,15 +662,21 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - s3:GetObjectVersionForReplication
+                  - s3:GetObjectVersionAcl
+                  - s3:GetObjectVersionTagging
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}"
+                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}/*"
+              - Effect: Allow
+                Action:
                   - s3:ReplicateObject
                   - s3:ReplicateDelete
                   - s3:ReplicateTags
-                  - s3:GetObjectVersionForReplication
-                  - s3:GetBucketVersioning
-                  - s3:GetBucketLocation
+                  - s3:ObjectOwnerOverrideToBucketOwner
                 Resource:
-                  - !Sub 'arn:aws:s3:::${PhotoBlogPrimaryBucket}/*'
-                  - !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
+                  - !Sub "arn:aws:s3:::${PhotoBlogBackupBucket}/*"
 
 Outputs:
   PhotoBlogAppApi:

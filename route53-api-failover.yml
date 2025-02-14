@@ -127,6 +127,8 @@ Resources:
       Runtime: python3.8
       Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: 512
+      Timeout: 30
       Environment:
         Variables:
           ADMIN_EMAIL: !Ref AdminEmail
@@ -156,22 +158,29 @@ Resources:
             # Notify admin of failover
             message = f"Primary API is down. Failover to Secondary API initiated."
             response = sns.publish(
-                TopicArn=sns_topic_arn,
-                Message=message,
-                Subject="API Gateway Failover Alert"
+            TopicArn=sns_topic_arn,
+            Message=message,
+            Subject="API Gateway Failover Alert"
             )
             
             # Scan DynamoDB table using the specified index
-            response = dynamodb.scan(
-                TableName=dynamodb_table,
-                IndexName=TypeIndex
+            response = dynamodb.query(
+            TableName=global_dynamo_db_table,
+            IndexName="TypeIndex",
+            KeyConditionExpression="#t = :typeValue",
+            ExpressionAttributeNames={
+            "#t": "type"
+          },
+            ExpressionAttributeValues={
+            ":typeValue": {"S": "user"}
+          }
             )
           
-          # Process each item
-          for item in response.get('Items', []):
+            # Process each item
+            for item in response.get('Items', []):
               email = item.get('pk', {}).get('S')
               full_name = item.get('sk', {}).get('S')
-
+              
               if email and full_name:
                 # Create a new user in the Cognito User Pool
                 try:
@@ -179,20 +188,21 @@ Resources:
                     UserPoolId=backup_user_pool_id,
                     Username=email,
                     UserAttributes=[
-                        {'Name': 'email', 'Value': email},
-                        {'Name': 'name', 'Value': full_name}
+                      {'Name': 'email', 'Value': email},
+                      {'Name': 'name', 'Value': full_name}
                     ]
                   )
                 except cognito.exceptions.UsernameExistsException:
                   print(f"User {email} already exists.")
                 except Exception as e:
                   print(f"Error creating user {email}: {e}")
-        
+          
           
             return {
                 'statusCode': 200,
                 'body': json.dumps('Failover Notification Sent')
             }
+
 
   # ✅ Failover lambda function role
   LambdaExecutionRole:
@@ -214,3 +224,28 @@ Resources:
                 Action:
                   - "sns:Publish"
                 Resource: !Ref SNSTopic
+
+        # ✅ Allow querying the DynamoDB table (for failover data retrieval)
+        - PolicyName: "LambdaDynamoDBQuery"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "dynamodb:Query"
+                  - "dynamodb:Scan"
+                Resource:
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${GlobalDynamodbTable}
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${GlobalDynamodbTable}/index/*
+
+        # ✅ Allow creating users in the Cognito User Pool
+        - PolicyName: "LambdaCognitoUserManagement"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "cognito-idp:AdminCreateUser"
+                Resource:
+                  - !Sub "arn:aws:cognito-idp:${BackupRegion}:${AWS::AccountId}:userpool/${BackupRegionUserPoolId}"
+

@@ -303,7 +303,7 @@ Resources:
   # Staging s3 bucket
   StagingBucket:
     Type: AWS::S3::Bucket
-    #    DeletionPolicy: Retain
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub '${AWS::StackName}-staging-bucket'
       PublicAccessBlockConfiguration:
@@ -316,7 +316,7 @@ Resources:
   PrimaryBucket:
     Type: AWS::S3::Bucket
     Condition: IsPrimaryRegion
-    #    DeletionPolicy: Retain
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Ref PhotoBlogPrimaryBucket
       PublicAccessBlockConfiguration:
@@ -333,14 +333,14 @@ Resources:
               Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
             Status: Enabled
             Filter:
-              Prefix: ""
+              Prefix: {}
             DeleteMarkerReplication:
               Status: Enabled
 
   BackupPrimaryBucket:
     Type: AWS::S3::Bucket
     Condition: IsPrimaryRegion
-#    DeletionPolicy: Retain
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Ref PhotoBlogBackupBucket
       PublicAccessBlockConfiguration:

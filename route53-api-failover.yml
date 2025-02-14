@@ -329,6 +329,22 @@ Resources:
               - Effect: Allow
                 Action:
                   - "cognito-idp:AdminCreateUser"
+                  - "cognito-idp:DescribeUserPool"
+                  - "cognito-idp:ListUserPoolClients"
+                  - "cognito-idp:DescribeUserPoolClient"
                 Resource:
                   - !Sub "arn:aws:cognito-idp:${BackupRegion}:${AWS::AccountId}:userpool/${BackupRegionUserPoolId}"
+
+        # Allow managing Amplify app and triggering deployments
+        - PolicyName: "LambdaAmplifyManagement"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "amplify:GetApp"
+                  - "amplify:UpdateApp"
+                  - "amplify:StartJob"
+                Resource:
+                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}"
 

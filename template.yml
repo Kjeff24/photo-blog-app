@@ -383,7 +383,7 @@ Resources:
           - IsBackupRegion
           -
             EmailSubject: "Password Reset"
-            EmailMessage: "Hello {username}, to enhance security reset your password. Your temporary password is {####}."
+            EmailMessage: "Hello {username}, to enhance security reset your password. Your temporary password is {####}"
           - !Ref "AWS::NoValue"
 
   # Cognito User Pool Client

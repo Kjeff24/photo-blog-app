@@ -178,12 +178,17 @@ Resources:
               - s3:ListBucket
             Resource:
               - !Sub
-                - arn:aws:s3:::${BucketName}
-                - BucketName: !If
+                - arn:aws:s3:::${MainBucket}
+                - MainBucket: !If
                     - IsPrimaryRegion
                     - !Ref PhotoBlogPrimaryBucket
                     - !Ref PhotoBlogBackupBucket
-              - !Sub 'arn:aws:s3:::${StagingBucket}'
+              - !Sub
+                - arn:aws:s3:::${StagingBucket}
+                - StagingBucket: !If
+                    - IsPrimaryRegion
+                    - !Ref PhotoBlogPrimaryStagingBucket
+                    - !Ref PhotoBlogBackupStagingBucket
         - Statement:
             - Effect: Allow
               Action:

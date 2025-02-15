@@ -2,19 +2,19 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: S3 bucket creation and replication
 
 Parameters:
-  PhotoBlogPrimaryBucket:
+  PrimaryBucket:
     Type: String
     Default: "photo-blog-app-primary-bucket"
     Description: Primary bucket
-  PhotoBlogBackupBucket:
+  BackupBucket:
     Type: String
     Default: "photo-blog-app-backup-bucket"
     Description: Backup bucket
-  PhotoBlogPrimaryStagingBucket:
+  PrimaryStagingBucket:
     Type: String
     Default: "photo-blog-app-primary-staging-bucket"
     Description: Primary staging bucket
-  PhotoBlogBackupStagingBucket:
+  BackupStagingBucket:
     Type: String
     Default: "photo-blog-app-backup-staging-bucket"
     Description: Backup staging bucket
@@ -35,11 +35,11 @@ Conditions:
 
 Resources:
   # Primary Staging s3 bucket
-  PrimaryStagingBucket:
+  PrimaryStagingBucketResource:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Ref PhotoBlogPrimaryStagingBucket
+      BucketName: !Ref PrimaryStagingBucket
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -47,11 +47,11 @@ Resources:
         RestrictPublicBuckets: false
 
   # Primary Staging s3 bucket
-  BackupStagingBucket:
+  BackupStagingBucketResource:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Ref PhotoBlogBackupStagingBucket
+      BucketName: !Ref BackupStagingBucket
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -59,12 +59,12 @@ Resources:
         RestrictPublicBuckets: false
 
   # Primary s3 bucket
-  PrimaryBucket:
+  PrimaryBucketResource:
     Type: AWS::S3::Bucket
     Condition: IsPrimaryRegion
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Ref PhotoBlogPrimaryBucket
+      BucketName: !Ref PrimaryBucket
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -82,13 +82,13 @@ Resources:
             DeleteMarkerReplication:
               Status: Enabled
             Destination:
-              Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
+              Bucket: !Sub arn:aws:s3:::${BackupBucket}
 
   # Primary Staging bucket policy
   PrimaryStagingBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref PhotoBlogPrimaryStagingBucket
+      Bucket: !Ref PrimaryStagingBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -98,13 +98,13 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${PhotoBlogPrimaryStagingBucket}/*'
+            Resource: !Sub 'arn:aws:s3:::${PrimaryStagingBucket}/*'
 
   # Primary Staging bucket policy
   BackupStagingBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref PhotoBlogBackupStagingBucket
+      Bucket: !Ref BackupStagingBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -114,7 +114,7 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${PhotoBlogBackupStagingBucket}/*'
+            Resource: !Sub 'arn:aws:s3:::${BackupStagingBucket}/*'
 
 
   # Primary bucket policy
@@ -132,7 +132,7 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${PhotoBlogPrimaryBucket}/*'
+            Resource: !Sub 'arn:aws:s3:::${PrimaryBucket}/*'
 
   BackupPrimaryBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -148,7 +148,7 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
+            Resource: !Sub 'arn:aws:s3:::${BackupBucket}/*'
 
 
   BackupPrimaryBucket:
@@ -156,7 +156,7 @@ Resources:
     Condition: IsPrimaryRegion
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Ref PhotoBlogBackupBucket
+      BucketName: !Ref BackupBucket
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -189,8 +189,8 @@ Resources:
                   - s3:GetObjectVersionTagging
                   - s3:ListBucket
                 Resource:
-                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}"
-                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}/*"
+                  - !Sub "arn:aws:s3:::${PrimaryBucket}"
+                  - !Sub "arn:aws:s3:::${PrimaryBucket}/*"
               - Effect: Allow
                 Action:
                   - s3:ReplicateObject
@@ -198,4 +198,4 @@ Resources:
                   - s3:ReplicateTags
                   - s3:ObjectOwnerOverrideToBucketOwner
                 Resource:
-                  - !Sub "arn:aws:s3:::${PhotoBlogBackupBucket}/*"
+                  - !Sub "arn:aws:s3:::${BackupBucket}/*"

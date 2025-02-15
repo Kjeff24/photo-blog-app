@@ -22,6 +22,14 @@ Parameters:
     Type: String
     Default: "photo-blog-app-backup-bucket"
     Description: Backup bucket for s3 bucket
+  PhotoBlogPrimaryStagingBucket:
+    Type: String
+    Default: "photo-blog-app-primary-staging-bucket"
+    Description: Primary staging bucket
+  PhotoBlogBackupStagingBucket:
+    Type: String
+    Default: "photo-blog-app-backup-staging-bucket"
+    Description: Backup staging bucket
   DynamoDBGlobalTable:
     Type: String
     Default: "dynamodb-global-table"
@@ -69,12 +77,17 @@ Resources:
               - s3:CopyObject
             Resource:
               - !Sub
-                - arn:aws:s3:::${BucketName}
-                - BucketName: !If
+                - arn:aws:s3:::${MainBucket}
+                - MainBucket: !If
                     - IsPrimaryRegion
                     - !Ref PhotoBlogPrimaryBucket
                     - !Ref PhotoBlogBackupBucket
-              - !Sub 'arn:aws:s3:::${StagingBucket}'
+              - !Sub
+                - arn:aws:s3:::${StagingBucket}
+                - StagingBucket: !If
+                    - IsPrimaryRegion
+                    - !Ref PhotoBlogPrimaryStagingBucket
+                    - !Ref PhotoBlogBackupStagingBucket
         - Statement:
             - Effect: Allow
               Action:
@@ -112,7 +125,10 @@ Resources:
             - IsPrimaryRegion
             - !Ref PhotoBlogPrimaryBucket
             - !Ref PhotoBlogBackupBucket
-          S3_BUCKET_STAGING: !Ref StagingBucket
+          S3_BUCKET_STAGING: !If
+            - IsPrimaryRegion
+            - !Ref PhotoBlogPrimaryStagingBucket
+            - !Ref PhotoBlogBackupStagingBucket
           DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
           TASK_QUEUE: !Ref TaskQueue
@@ -299,58 +315,6 @@ Resources:
   #    Properties:
   #      ServiceToken: !GetAtt CloudFormationCustomResourceLambda.Arn
   #      ServiceTimeout: 30
-
-  # Staging s3 bucket
-  StagingBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    Properties:
-      BucketName: !Sub '${AWS::StackName}-staging-bucket'
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-
-  # Primary s3 bucket
-  PrimaryBucket:
-    Type: AWS::S3::Bucket
-    Condition: IsPrimaryRegion
-    DeletionPolicy: Retain
-    Properties:
-      BucketName: !Ref PhotoBlogPrimaryBucket
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      VersioningConfiguration:
-        Status: Enabled
-      ReplicationConfiguration:
-        Role: !GetAtt S3ReplicationRole.Arn
-        Rules:
-          - Status: Enabled
-            Priority: 1
-            Filter:
-              Prefix: ""
-            DeleteMarkerReplication:
-              Status: Enabled
-            Destination:
-              Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
-
-  BackupPrimaryBucket:
-    Type: AWS::S3::Bucket
-    Condition: IsPrimaryRegion
-    DeletionPolicy: Retain
-    Properties:
-      BucketName: !Ref PhotoBlogBackupBucket
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      VersioningConfiguration:
-        Status: Enabled
 
   # Cognito User Pool
   UserPool:
@@ -547,56 +511,6 @@ Resources:
         }
 
 
-  # BUCKET POLICIES
-
-  # Staging bucket policy
-  StagingBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref StagingBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: "*"
-            Action:
-              - s3:PutObject
-              - s3:DeleteObject
-              - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${StagingBucket}/*'
-
-  # Primary bucket policy
-  PrimaryBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Condition: IsPrimaryRegion
-    Properties:
-      Bucket: !Ref PrimaryBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: "*"
-            Action:
-              - s3:PutObject
-              - s3:DeleteObject
-              - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${PhotoBlogPrimaryBucket}/*'
-
-  BackupPrimaryBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Condition: IsPrimaryRegion
-    Properties:
-      Bucket: !Ref BackupPrimaryBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: "*"
-            Action:
-              - s3:PutObject
-              - s3:DeleteObject
-              - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
 
   # IAM ROLES
   # Step Functions Role
@@ -649,41 +563,6 @@ Resources:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
                   - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
 
-  # S3 replication role
-  S3ReplicationRole:
-    Type: AWS::IAM::Role
-    Condition: IsPrimaryRegion
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: s3.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: S3ReplicationPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObjectVersionForReplication
-                  - s3:GetObjectVersionAcl
-                  - s3:GetObjectVersionTagging
-                  - s3:ListBucket
-                Resource:
-                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}"
-                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}/*"
-              - Effect: Allow
-                Action:
-                  - s3:ReplicateObject
-                  - s3:ReplicateDelete
-                  - s3:ReplicateTags
-                  - s3:ObjectOwnerOverrideToBucketOwner
-                Resource:
-                  - !Sub "arn:aws:s3:::${PhotoBlogBackupBucket}/*"
-
 Outputs:
   PhotoBlogAppApi:
     Description: URL for application
@@ -710,7 +589,3 @@ Outputs:
   CognitoUserPoolClientInfo:
     Description: AWS CLI command for Amazon Cognito User Pool information
     Value: !Sub "aws cognito-idp describe-user-pool-client --user-pool-id ${UserPool} --client-id ${UserPoolClient}"
-
-  StagingS3Bucket:
-    Description: Staging s3 bucket
-    Value: !Ref StagingBucket

@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: S3 bucket creation and replication
+
+Parameters:
+  PhotoBlogPrimaryBucket:
+    Type: String
+    Default: "photo-blog-app-primary-bucket"
+    Description: Primary bucket
+  PhotoBlogBackupBucket:
+    Type: String
+    Default: "photo-blog-app-backup-bucket"
+    Description: Backup bucket
+  PhotoBlogPrimaryStagingBucket:
+    Type: String
+    Default: "photo-blog-app-primary-staging-bucket"
+    Description: Primary staging bucket
+  PhotoBlogBackupStagingBucket:
+    Type: String
+    Default: "photo-blog-app-backup-staging-bucket"
+    Description: Backup staging bucket
+  PrimaryRegion:
+    Type: String
+    Default: "eu-central-1"
+    Description: Backup region for disaster recovery
+  BackupRegion:
+    Type: String
+    Default: "eu-west-1"
+    Description: Backup region for disaster recovery
+
+Conditions:
+  IsPrimaryRegion: !Equals [!Ref AWS::Region, !Ref PrimaryRegion]
+  IsBackupRegion: !Equals [ !Ref AWS::Region, !Ref BackupRegion ]
+
+
+
+Resources:
+  # Primary Staging s3 bucket
+  PrimaryStagingBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref PhotoBlogPrimaryStagingBucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # Primary Staging s3 bucket
+  BackupStagingBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref PhotoBlogBackupStagingBucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # Primary s3 bucket
+  PrimaryBucket:
+    Type: AWS::S3::Bucket
+    Condition: IsPrimaryRegion
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref PhotoBlogPrimaryBucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      VersioningConfiguration:
+        Status: Enabled
+      ReplicationConfiguration:
+        Role: !GetAtt S3ReplicationRole.Arn
+        Rules:
+          - Status: Enabled
+            Priority: 1
+            Filter:
+              Prefix: ""
+            DeleteMarkerReplication:
+              Status: Enabled
+            Destination:
+              Bucket: !Sub arn:aws:s3:::${PhotoBlogBackupBucket}
+
+  # Primary Staging bucket policy
+  PrimaryStagingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PhotoBlogPrimaryStagingBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:GetObject
+            Resource: !Sub 'arn:aws:s3:::${PhotoBlogPrimaryStagingBucket}/*'
+
+  # Primary Staging bucket policy
+  BackupStagingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PhotoBlogBackupStagingBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:GetObject
+            Resource: !Sub 'arn:aws:s3:::${PhotoBlogBackupStagingBucket}/*'
+
+
+  # Primary bucket policy
+  PrimaryBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: IsPrimaryRegion
+    Properties:
+      Bucket: !Ref PrimaryBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:GetObject
+            Resource: !Sub 'arn:aws:s3:::${PhotoBlogPrimaryBucket}/*'
+
+  BackupPrimaryBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: IsPrimaryRegion
+    Properties:
+      Bucket: !Ref BackupPrimaryBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:GetObject
+            Resource: !Sub 'arn:aws:s3:::${PhotoBlogBackupBucket}/*'
+
+
+  BackupPrimaryBucket:
+    Type: AWS::S3::Bucket
+    Condition: IsPrimaryRegion
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref PhotoBlogBackupBucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      VersioningConfiguration:
+        Status: Enabled
+
+  # S3 replication role
+  S3ReplicationRole:
+    Type: AWS::IAM::Role
+    Condition: IsPrimaryRegion
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3ReplicationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObjectVersionForReplication
+                  - s3:GetObjectVersionAcl
+                  - s3:GetObjectVersionTagging
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}"
+                  - !Sub "arn:aws:s3:::${PhotoBlogPrimaryBucket}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ReplicateObject
+                  - s3:ReplicateDelete
+                  - s3:ReplicateTags
+                  - s3:ObjectOwnerOverrideToBucketOwner
+                Resource:
+                  - !Sub "arn:aws:s3:::${PhotoBlogBackupBucket}/*"

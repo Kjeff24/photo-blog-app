@@ -14,19 +14,19 @@ Parameters:
     Type: String
     Default: "http://localhost:4200"
     Description: The localhost of my frontend
-  PhotoBlogPrimaryBucket:
+  PrimaryBucket:
     Type: String
     Default: "photo-blog-app-primary-bucket"
     Description: Primary bucket for s3 bucket
-  PhotoBlogBackupBucket:
+  BackupBucket:
     Type: String
     Default: "photo-blog-app-backup-bucket"
     Description: Backup bucket for s3 bucket
-  PhotoBlogPrimaryStagingBucket:
+  PrimaryStagingBucket:
     Type: String
     Default: "photo-blog-app-primary-staging-bucket"
     Description: Primary staging bucket
-  PhotoBlogBackupStagingBucket:
+  BackupStagingBucket:
     Type: String
     Default: "photo-blog-app-backup-staging-bucket"
     Description: Backup staging bucket
@@ -80,14 +80,14 @@ Resources:
                 - arn:aws:s3:::${MainBucket}
                 - MainBucket: !If
                     - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
+                    - !Ref PrimaryBucket
+                    - !Ref BackupBucket
               - !Sub
                 - arn:aws:s3:::${StagingBucket}
                 - StagingBucket: !If
                     - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryStagingBucket
-                    - !Ref PhotoBlogBackupStagingBucket
+                    - !Ref PrimaryStagingBucket
+                    - !Ref BackupStagingBucket
         - Statement:
             - Effect: Allow
               Action:
@@ -123,12 +123,12 @@ Resources:
         Variables:
           S3_BUCKET_PRIMARY: !If
             - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryBucket
-            - !Ref PhotoBlogBackupBucket
+            - !Ref PrimaryBucket
+            - !Ref BackupBucket
           S3_BUCKET_STAGING: !If
             - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryStagingBucket
-            - !Ref PhotoBlogBackupStagingBucket
+            - !Ref PrimaryStagingBucket
+            - !Ref BackupStagingBucket
           DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
           TASK_QUEUE: !Ref TaskQueue
@@ -181,14 +181,14 @@ Resources:
                 - arn:aws:s3:::${MainBucket}
                 - MainBucket: !If
                     - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
+                    - !Ref PrimaryBucket
+                    - !Ref BackupBucket
               - !Sub
                 - arn:aws:s3:::${StagingBucket}
                 - StagingBucket: !If
                     - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryStagingBucket
-                    - !Ref PhotoBlogBackupStagingBucket
+                    - !Ref PrimaryStagingBucket
+                    - !Ref BackupStagingBucket
         - Statement:
             - Effect: Allow
               Action:
@@ -213,8 +213,8 @@ Resources:
         Variables:
           S3_BUCKET_PRIMARY: !If
             - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryBucket
-            - !Ref PhotoBlogBackupBucket
+            - !Ref PrimaryBucket
+            - !Ref BackupBucket
           DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
           STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
           TASK_QUEUE: !Ref TaskQueue

@@ -77,8 +77,8 @@ Resources:
               - s3:CopyObject
             Resource:
               - !Sub
-                - arn:aws:s3:::${PrimaryName}
-                - PrimaryName: !If
+                - arn:aws:s3:::${MainBucket}
+                - MainBucket: !If
                     - IsPrimaryRegion
                     - !Ref PhotoBlogPrimaryBucket
                     - !Ref PhotoBlogBackupBucket

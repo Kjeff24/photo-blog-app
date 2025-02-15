@@ -133,11 +133,11 @@ Resources:
       Runtime: python3.8
       Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
+#      RecursiveLoop: Terminate
       MemorySize: 512
       Timeout: 30
       Environment:
         Variables:
-          SNS_TOPIC_ARN: !Ref SNSTopic
           BACKUP_REGION: !Ref BackupRegion
           BACKUP_REGION_USER_POOL_ID: !Ref BackupRegionUserPoolId
           DYNAMODB_TABLE: !Ref GlobalDynamodbTable
@@ -152,20 +152,10 @@ Resources:
           # Initialize AWS clients
           def initialize_clients(backup_region):
             return {
-              'sns': boto3.client('sns'),
               'dynamodb': boto3.client('dynamodb', region_name=backup_region),
               'cognito': boto3.client('cognito-idp', region_name=backup_region),
               'amplify': boto3.client('amplify', region_name=backup_region)
             }
-          
-          # Notify admin of failover
-          def notify_admin(sns_client, sns_topic_arn):
-            message = "Primary API is down. Failover to Secondary API initiated."
-            sns_client.publish(
-              TopicArn=sns_topic_arn,
-              Message=message,
-              Subject="API Gateway Failover Alert"
-            )
           
           # Query DynamoDB for user data
           def query_dynamodb(dynamodb_client, table_name):
@@ -182,21 +172,32 @@ Resources:
             for user in users:
               email = user.get('pk', {}).get('S')
               full_name = user.get('sk', {}).get('S')
+              
               if email and full_name:
                 try:
-                  cognito_client.admin_create_user(
-                    UserPoolId=user_pool_id,
-                    Username=email,
-                    UserAttributes=[
-                      {'Name': 'email', 'Value': email},
-                      {'Name': 'name', 'Value': full_name}
-                    ]
+                  # Check if the user already exists
+                  cognito_client.admin_get_user(
+                  UserPoolId=user_pool_id,
+                  Username=email
                   )
-                except cognito_client.exceptions.UsernameExistsException:
                   print(f"User {email} already exists.")
-                except Exception as e:
-                  print(f"Error creating user {email}: {e}")
-          
+                except cognito_client.exceptions.UserNotFoundException:
+                  # If the user does not exist, create them
+                  try:
+                    cognito_client.admin_create_user(
+                      UserPoolId=user_pool_id,
+                      Username=email,
+                      UserAttributes=[
+                        {'Name': 'email', 'Value': email},
+                        {'Name': 'name', 'Value': full_name}
+                      ]
+                    )
+                    print(f"User {email} created successfully.")
+                  except Exception as e:
+                    print(f"Error creating user {email}: {e}")
+                  except Exception as e:
+                    print(f"Error checking user {email}: {e}")
+                        
           # Update Amplify environment variables
           def update_amplify(amplify_client, cognito_client, amplify_app_id, backup_user_pool_id, backup_region, branch_name):
             try:
@@ -254,16 +255,12 @@ Resources:
               'backup_region': os.environ['BACKUP_REGION'],
               'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
               'dynamodb_table': os.environ['DYNAMODB_TABLE'],
-              'sns_topic_arn': os.environ['SNS_TOPIC_ARN'],
               'amplify_app_id': os.environ['AMPLIFY_APP_ID'],
               'branch_name': os.environ['BRANCH_NAME']
             }
         
             # Initialize AWS clients
             clients = initialize_clients(env_vars['backup_region'])
-        
-            # Notify admin of failover
-            notify_admin(clients['sns'], env_vars['sns_topic_arn'])
         
             # Query DynamoDB for user data
             dynamodb_response = query_dynamodb(clients['dynamodb'], env_vars['dynamodb_table'])
@@ -307,14 +304,6 @@ Resources:
               Service: "lambda.amazonaws.com"
             Action: "sts:AssumeRole"
       Policies:
-        - PolicyName: "LambdaSNSPublish"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - "sns:Publish"
-                Resource: !Ref SNSTopic
 
         # ✅ Allow querying the DynamoDB table (for failover data retrieval)
         - PolicyName: "LambdaDynamoDBQuery"

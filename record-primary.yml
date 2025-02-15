@@ -249,9 +249,6 @@ Resources:
             # Query DynamoDB for user data
             dynamodb_response = query_dynamodb(clients['dynamodb'], env_vars['dynamodb_table'])
 
-            # Create users in Cognito
-            create_cognito_users(clients['cognito'], env_vars['backup_user_pool_id'], dynamodb_response.get('Items', []))
-
             # Update Amplify environment variables
             update_amplify(
               clients['amplify'],
@@ -262,10 +259,13 @@ Resources:
               env_vars['branch_name']
             )
 
+            # Create users in Cognito
+            create_cognito_users(clients['cognito'], env_vars['backup_user_pool_id'], dynamodb_response.get('Items', []))
+
             return {
               'statusCode': 200,
-              'body': json.dumps('Failover Notification Sent')
-#            }
+              'body': json.dumps('Amplify and cognito user pool updated')
+            }
 
     # ✅ Permissions for SNS to invoke Lambda
   LambdaInvokePermission:

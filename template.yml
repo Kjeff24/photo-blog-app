@@ -83,8 +83,8 @@ Resources:
                     - !Ref PhotoBlogPrimaryBucket
                     - !Ref PhotoBlogBackupBucket
               - !Sub
-                - arn:aws:s3:::${StagingName}
-                - StagingName: !If
+                - arn:aws:s3:::${StagingBucket}
+                - StagingBucket: !If
                     - IsPrimaryRegion
                     - !Ref PhotoBlogPrimaryStagingBucket
                     - !Ref PhotoBlogBackupStagingBucket

@@ -80,6 +80,7 @@ public class BlogController {
     @DeleteMapping("/recycle/{photoId}")
     @ResponseStatus(HttpStatus.OK)
     public void moveToRecycleBin(@PathVariable("photoId") String photoId, @AuthenticationPrincipal Jwt jwt) {
+        System.out.println("Moving item to recycle bin");
         String userEmail = jwt.getClaimAsString("email");
         blogService.moveToOrRestoreFromRecycleBin(photoId, userEmail, true);
     }

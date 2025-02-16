@@ -106,6 +106,7 @@ public class S3ServiceImpl implements S3Service {
                     .build();
             s3Client.copyObject(copyRequest);
         } catch (S3Exception e) {
+            System.out.println(e.getMessage());
             throw new CustomBadRequestException("Failed to move object");
         }
     }
@@ -118,6 +119,7 @@ public class S3ServiceImpl implements S3Service {
                     .build();
             s3Client.deleteObject(deleteRequest);
         } catch (S3Exception e) {
+            System.out.println(e.getMessage());
             throw new CustomBadRequestException("Failed to move object");
         }
     }

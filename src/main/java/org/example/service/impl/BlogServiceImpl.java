@@ -62,6 +62,7 @@ public class BlogServiceImpl implements BlogService {
                 blogRepository.updateDeleteStatusAndImageUrl(photoId, userEmail, 0, imageUrl);
             }
         } catch (Exception e) {
+            System.out.println(e.getMessage());
             throw new CustomBadRequestException(isMoveToRecycleBin ? "Failed to move to recycle bin" : "Failed to restore from recycle bin");
         }
     }

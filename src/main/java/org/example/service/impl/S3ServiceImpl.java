@@ -73,6 +73,7 @@ public class S3ServiceImpl implements S3Service {
 
             return invokeLambda(lambdaEvent);
         } catch (Exception e) {
+            System.out.println(e.getMessage());
             throw new CustomBadRequestException("Image upload failed");
         }
     }

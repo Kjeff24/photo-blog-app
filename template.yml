@@ -396,47 +396,6 @@ Resources:
       Domain: !Sub ${AWS::StackName}-domain
       UserPoolId: !Ref UserPool
 
-  # Global Table With replication across two region
-  GlobalDynamoDBTable:
-    Type: AWS::DynamoDB::GlobalTable
-    Condition: IsPrimaryRegion
-    Properties:
-      TableName: !Ref DynamoDBGlobalTable
-      AttributeDefinitions:
-        - AttributeName: pk
-          AttributeType: S
-        - AttributeName: sk
-          AttributeType: S
-        - AttributeName: type
-          AttributeType: S
-      KeySchema:
-        - AttributeName: pk
-          KeyType: HASH
-        - AttributeName: sk
-          KeyType: RANGE
-      BillingMode: PAY_PER_REQUEST
-      StreamSpecification:
-        StreamViewType: NEW_IMAGE
-      Replicas:
-        - Region: !Ref AWS::Region
-          PointInTimeRecoverySpecification:
-            PointInTimeRecoveryEnabled: true
-        - Region: !Ref BackupRegion
-          PointInTimeRecoverySpecification:
-            PointInTimeRecoveryEnabled: true
-      GlobalSecondaryIndexes:
-        - IndexName: OwnerIndex
-          KeySchema:
-            - AttributeName: sk
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-        - IndexName: TypeIndex
-          KeySchema:
-            - AttributeName: type
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
 
   # SNS topic to send notification
   NotificationTopic:
@@ -535,33 +494,6 @@ Resources:
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ImageProcessingLambda
 
-  # DynamoDB replication role
-  DynamoDBReplicationRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: dynamodb.amazonaws.com
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: DynamoDBGlobalTableReplicationPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:CreateTableReplica
-                  - dynamodb:UpdateTable
-                  - dynamodb:DeleteTableReplica
-                  - dynamodb:DescribeTable
-                  - dynamodb:DescribeContinuousBackups
-                  - dynamodb:DescribeContributorInsights
-                Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
-                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
 
 Outputs:
   PhotoBlogAppApi:

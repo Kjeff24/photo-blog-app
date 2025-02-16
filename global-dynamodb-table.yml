@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: S3 bucket creation and replication
+
+Parameters:
+  DynamoDBGlobalTable:
+    Type: String
+    Default: "dynamodb-global-table"
+    Description: DynamoDB global table
+  BackupRegion:
+    Type: String
+    Default: "eu-west-1"
+    Description: Backup region for disaster recovery
+
+Resources:
+# Global Table With replication across two region
+  GlobalDynamoDBTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Properties:
+      TableName: !Ref DynamoDBGlobalTable
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: type
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      Replicas:
+        - Region: !Ref AWS::Region
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: !Ref BackupRegion
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+      GlobalSecondaryIndexes:
+        - IndexName: OwnerIndex
+          KeySchema:
+            - AttributeName: sk
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: TypeIndex
+          KeySchema:
+            - AttributeName: type
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # DynamoDB replication role
+  DynamoDBReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: dynamodb.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: DynamoDBGlobalTableReplicationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTableReplica
+                  - dynamodb:UpdateTable
+                  - dynamodb:DeleteTableReplica
+                  - dynamodb:DescribeTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:DescribeContributorInsights
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${DynamoDBGlobalTable}

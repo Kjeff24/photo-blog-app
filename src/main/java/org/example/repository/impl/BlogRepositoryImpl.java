@@ -17,6 +17,7 @@ import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                         ))
                         .filterExpression(filterExpression))
                 .stream()
-                .flatMap(page -> page.items().stream())
+                .flatMap(page -> Optional.ofNullable(page.items()).orElse(Collections.emptyList()).stream())
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(blogPostMapper::toBlogPostResponse)
                 .toList();
@@ -81,8 +82,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                                 .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
                                 .build()))
                 .stream()
-                .map(Page::items)
-                .flatMap(List::stream)
+                .flatMap(page -> Optional.ofNullable(page.items()).orElse(Collections.emptyList()).stream())
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(blogPostMapper::toBlogPostResponse)
                 .toList();
@@ -118,8 +118,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                                 .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
                                 .build()))
                 .stream()
-                .map(Page::items)
-                .flatMap(List::stream)
+                .flatMap(page -> Optional.ofNullable(page.items()).orElse(Collections.emptyList()).stream())
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(blogPostMapper::toBlogPostResponse)
                 .toList();

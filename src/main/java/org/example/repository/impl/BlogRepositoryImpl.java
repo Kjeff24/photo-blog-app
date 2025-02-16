@@ -1,6 +1,8 @@
 package org.example.repository.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dto.BlogPostResponse;
+import org.example.mapper.BlogPostMapper;
 import org.example.model.BlogPost;
 import org.example.repository.BlogRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +25,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class BlogRepositoryImpl implements BlogRepository {
+    private BlogPostMapper blogPostMapper;
     @Value("${aws.dynamodb.table}")
     private String tableName;
 
@@ -44,7 +47,7 @@ public class BlogRepositoryImpl implements BlogRepository {
         return Optional.ofNullable(getTable().getItem(r -> r.key(key)));
     }
 
-    public List<BlogPost> findAll() {
+    public List<BlogPostResponse> findAll() {
         DynamoDbTable<BlogPost> table = getTable();
 
         DynamoDbIndex<BlogPost> index = table.index("TypeIndex");
@@ -62,13 +65,14 @@ public class BlogRepositoryImpl implements BlogRepository {
                 .stream()
                 .flatMap(page -> page.items().stream())
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(blogPostMapper::toBlogPostResponse)
                 .toList();
     }
 
 
 
 
-    public List<BlogPost> findAllByUserEmail(String userEmail) {
+    public List<BlogPostResponse> findAllByUserEmail(String userEmail) {
         DynamoDbIndex<BlogPost> index = getTable().index("OwnerIndex");
         return index.query(r -> r.queryConditional(
                                 QueryConditional.keyEqualTo(k -> k.partitionValue(userEmail)))
@@ -80,6 +84,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                 .map(Page::items)
                 .flatMap(List::stream)
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(blogPostMapper::toBlogPostResponse)
                 .toList();
     }
 
@@ -94,17 +99,17 @@ public class BlogRepositoryImpl implements BlogRepository {
         return true;
     }
 
-    public void updateDeleteStatusAndImageUrl(String photoId, String owner, int i, String imageUrl) {
+    public void updateDeleteStatusAndImageKey(String photoId, String owner, int i, String imageKey) {
         Optional<BlogPost> blogPost = findByPhotoIdAndOwner(photoId, owner);
 
         if(blogPost.isPresent()) {
             blogPost.get().setDeleteStatus(i);
-            blogPost.get().setImageUrl(imageUrl);
+            blogPost.get().setImageKey(imageKey);
             save(blogPost.get());
         }
     }
 
-    public List<BlogPost> findAllByUserAndDeleteStatus(String owner, int i) {
+    public List<BlogPostResponse> findAllByUserAndDeleteStatus(String owner, int i) {
         DynamoDbIndex<BlogPost> index = getTable().index("OwnerIndex");
         return index.query(r -> r.queryConditional(
                                 QueryConditional.keyEqualTo(k -> k.partitionValue(owner)))
@@ -116,6 +121,7 @@ public class BlogRepositoryImpl implements BlogRepository {
                 .map(Page::items)
                 .flatMap(List::stream)
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(blogPostMapper::toBlogPostResponse)
                 .toList();
     }
 

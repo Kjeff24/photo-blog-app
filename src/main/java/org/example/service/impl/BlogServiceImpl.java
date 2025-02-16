@@ -1,12 +1,11 @@
 package org.example.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dto.BlogPostResponse;
 import org.example.exception.CustomBadRequestException;
-import org.example.model.BlogPost;
 import org.example.repository.BlogRepository;
 import org.example.service.BlogService;
 import org.example.service.S3Service;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,16 +16,12 @@ public class BlogServiceImpl implements BlogService {
     private final BlogRepository blogRepository;
     private final S3Service s3Service;
     private final String recycleBin = "recycle-bin/";
-    @Value("${aws.region}")
-    private String awsRegion;
-    @Value("${aws.s3.bucket.primary}")
-    private String primaryBucket;
 
-    public List<BlogPost> findAllBlogPost() {
+    public List<BlogPostResponse> findAllBlogPost() {
         return blogRepository.findAll();
     }
 
-    public List<BlogPost> findAllBlogPostByUser(String userEmail) {
+    public List<BlogPostResponse> findAllBlogPostByUser(String userEmail) {
         return blogRepository.findAllByUserEmail(userEmail);
     }
 
@@ -39,7 +34,7 @@ public class BlogServiceImpl implements BlogService {
         }
     }
 
-    public List<BlogPost> findAllRecycleBlogPost(String userEmail) {
+    public List<BlogPostResponse> findAllRecycleBlogPost(String userEmail) {
         return blogRepository.findAllByUserAndDeleteStatus(userEmail, 1);
     }
 
@@ -50,18 +45,16 @@ public class BlogServiceImpl implements BlogService {
                 System.out.println("Move to recycle bin");
                 // Move to recycle bin
                 String destinationKey = recycleBin + photoId;
-                imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + destinationKey;
                 s3Service.moveObject(photoId, destinationKey);
                 s3Service.deleteObject(photoId);
-                blogRepository.updateDeleteStatusAndImageUrl(photoId, userEmail, 1, imageUrl);
+                blogRepository.updateDeleteStatusAndImageKey(photoId, userEmail, 1, destinationKey);
             } else {
                 System.out.println("Move from recycle bin");
                 // Restore from recycle bin
                 String sourceKey = recycleBin + photoId;
-                imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + photoId;
                 s3Service.moveObject(sourceKey, photoId);
                 s3Service.deleteObject(sourceKey);
-                blogRepository.updateDeleteStatusAndImageUrl(photoId, userEmail, 0, imageUrl);
+                blogRepository.updateDeleteStatusAndImageKey(photoId, userEmail, 0, photoId);
             }
         } catch (Exception e) {
             System.out.println(e.getMessage());

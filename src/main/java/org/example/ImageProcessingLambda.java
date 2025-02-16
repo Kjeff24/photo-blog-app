@@ -176,8 +176,6 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
     }
 
     private Map<String, Object> saveImageUrlToDynamoDb(String imageKey, String email, String fullName) {
-        String imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey;
-
         String uploadDate = LocalDateTime.now().toString();
 
         PutItemRequest putItemRequest = PutItemRequest.builder()
@@ -186,7 +184,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
                         "pk", AttributeValue.builder().s(imageKey).build(),
                         "sk", AttributeValue.builder().s(email).build(),
                         "fullName", AttributeValue.builder().s(fullName).build(),
-                        "imageUrl", AttributeValue.builder().s(imageUrl).build(),
+                        "imageKey", AttributeValue.builder().s(imageKey).build(),
                         "uploadDate", AttributeValue.builder().s(uploadDate).build(),
                         "deleteStatus", AttributeValue.builder().n("0").build(),
                         "type", AttributeValue.builder().s("photo").build())
@@ -199,8 +197,10 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         imageMetadata.put("pk", imageKey);
         imageMetadata.put("sk", email);
         imageMetadata.put("fullName", fullName);
-        imageMetadata.put("imageUrl", imageUrl);
+        imageMetadata.put("imageUrl", "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey);
         imageMetadata.put("uploadDate", uploadDate);
+        imageMetadata.put("deleteStatus", "photo");
+        imageMetadata.put("type", 0);
 
         return imageMetadata;
     }

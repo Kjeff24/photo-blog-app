@@ -2,10 +2,10 @@ package org.example.service.impl;
 
 import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
+import org.example.dto.BlogPostResponse;
 import org.example.dto.ImageUploadRequest;
 import org.example.dto.PreSignedUrlResponse;
 import org.example.exception.CustomBadRequestException;
-import org.example.model.BlogPost;
 import org.example.service.S3Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -47,7 +47,7 @@ public class S3ServiceImpl implements S3Service {
     @Value("${aws.lambda.function.image-processing-lambda}")
     private String imageProcessingLambda;
 
-    public BlogPost uploadImage(ImageUploadRequest request, String userEmail, String fullName) {
+    public BlogPostResponse uploadImage(ImageUploadRequest request, String userEmail, String fullName) {
         try {
             byte[] imageBytes = Base64.getDecoder().decode(request.imageBase64());
             String mimeType = detectMimeType(imageBytes);
@@ -124,7 +124,7 @@ public class S3ServiceImpl implements S3Service {
         }
     }
 
-    private BlogPost invokeLambda(Map<String, String> lambdaEvent) {
+    private BlogPostResponse invokeLambda(Map<String, String> lambdaEvent) {
 
         String eventJson = new Gson().toJson(lambdaEvent);
 
@@ -140,7 +140,7 @@ public class S3ServiceImpl implements S3Service {
             throw new CustomBadRequestException();
         }
 
-        return new Gson().fromJson(responsePayload, BlogPost.class);
+        return new Gson().fromJson(responsePayload, BlogPostResponse.class);
     }
 
 

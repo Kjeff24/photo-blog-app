@@ -106,7 +106,7 @@ public class S3ServiceImpl implements S3Service {
                     .build();
             s3Client.copyObject(copyRequest);
         } catch (S3Exception e) {
-            System.out.println(e.getMessage());
+            System.err.println(e.getMessage());
             throw new CustomBadRequestException("Failed to move object");
         }
     }
@@ -119,7 +119,7 @@ public class S3ServiceImpl implements S3Service {
                     .build();
             s3Client.deleteObject(deleteRequest);
         } catch (S3Exception e) {
-            System.out.println(e.getMessage());
+            System.err.println(e.getMessage());
             throw new CustomBadRequestException("Failed to move object");
         }
     }
@@ -136,15 +136,12 @@ public class S3ServiceImpl implements S3Service {
         InvokeResponse invokeResult = lambdaClient.invoke(invokeRequest);
 
         String responsePayload = invokeResult.payload().asUtf8String();
-        System.out.println("Payload: " + responsePayload);
+
         if (invokeResult.functionError() != null && !invokeResult.functionError().isEmpty()) {
             throw new CustomBadRequestException();
         }
 
-        System.out.println("Get BlogPostResponse");
-        BlogPostResponse response = new Gson().fromJson(responsePayload, BlogPostResponse.class);
-        System.out.println(response.toString());
-        return response;
+        return new Gson().fromJson(responsePayload, BlogPostResponse.class);
     }
 
 

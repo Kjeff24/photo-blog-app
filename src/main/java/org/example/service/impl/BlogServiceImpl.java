@@ -47,6 +47,7 @@ public class BlogServiceImpl implements BlogService {
         try {
             String imageUrl;
             if (isMoveToRecycleBin) {
+                System.out.println("Move to recycle bin");
                 // Move to recycle bin
                 String destinationKey = recycleBin + photoId;
                 imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + destinationKey;
@@ -54,6 +55,7 @@ public class BlogServiceImpl implements BlogService {
                 s3Service.deleteObject(photoId);
                 blogRepository.updateDeleteStatusAndImageUrl(photoId, userEmail, 1, imageUrl);
             } else {
+                System.out.println("Move from recycle bin");
                 // Restore from recycle bin
                 String sourceKey = recycleBin + photoId;
                 imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + photoId;

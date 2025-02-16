@@ -1,5 +1,6 @@
 package org.example.repository;
 
+import org.example.dto.BlogPostResponse;
 import org.example.model.BlogPost;
 
 import java.util.List;
@@ -10,13 +11,13 @@ public interface BlogRepository {
 
     Optional<BlogPost> findByPhotoIdAndOwner(String photoId, String owner);
 
-    List<BlogPost> findAll();
+    List<BlogPostResponse> findAll();
 
-    List<BlogPost> findAllByUserEmail(String owner);
+    List<BlogPostResponse> findAllByUserEmail(String owner);
 
     boolean deleteBlogPost(String photoId, String owner);
 
-    void updateDeleteStatusAndImageUrl(String photoId, String owner, int i, String imageUrl);
+    void updateDeleteStatusAndImageKey(String photoId, String owner, int i, String imageKey);
 
-    List<BlogPost> findAllByUserAndDeleteStatus(String owner, int i);
+    List<BlogPostResponse> findAllByUserAndDeleteStatus(String owner, int i);
 }

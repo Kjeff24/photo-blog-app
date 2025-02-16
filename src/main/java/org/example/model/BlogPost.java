@@ -23,7 +23,7 @@ public class BlogPost {
     private String sk;
     private String type;
     private String fullName;
-    private String imageUrl;
+    private String imageKey;
     private String uploadDate;
     private int deleteStatus;
 
@@ -51,9 +51,9 @@ public class BlogPost {
         return fullName;
     }
 
-    @DynamoDbAttribute(value = "imageUrl")
-    public String getImageUrl() {
-        return imageUrl;
+    @DynamoDbAttribute(value = "imageKey")
+    public String getImageKey() {
+        return imageKey;
     }
 
     @DynamoDbAttribute(value = "uploadDate")

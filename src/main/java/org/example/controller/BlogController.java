@@ -1,9 +1,9 @@
 package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dto.BlogPostResponse;
 import org.example.dto.ImageUploadRequest;
 import org.example.dto.PreSignedUrlResponse;
-import org.example.model.BlogPost;
 import org.example.service.BlogService;
 import org.example.service.S3Service;
 import org.springframework.http.HttpStatus;
@@ -30,13 +30,13 @@ public class BlogController {
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    public List<BlogPost> getAllBlogPosts() {
+    public List<BlogPostResponse> getAllBlogPosts() {
         return blogService.findAllBlogPost();
     }
 
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.OK)
-    public BlogPost uploadImage(
+    public BlogPostResponse uploadImage(
             @RequestBody ImageUploadRequest imageUploadRequest,
             @AuthenticationPrincipal Jwt jwt
     ) {
@@ -56,7 +56,7 @@ public class BlogController {
 
     @GetMapping("/user")
     @ResponseStatus(HttpStatus.OK)
-    public List<BlogPost> getBlogPostByUser(@AuthenticationPrincipal Jwt jwt) {
+    public List<BlogPostResponse> getBlogPostByUser(@AuthenticationPrincipal Jwt jwt) {
         String userEmail = jwt.getClaimAsString("email");
 
         return blogService.findAllBlogPostByUser(userEmail);
@@ -64,7 +64,7 @@ public class BlogController {
 
     @GetMapping("/user/recycle")
     @ResponseStatus(HttpStatus.OK)
-    public List<BlogPost> getRecycleBlogPostByUser(@AuthenticationPrincipal Jwt jwt) {
+    public List<BlogPostResponse> getRecycleBlogPostByUser(@AuthenticationPrincipal Jwt jwt) {
         String userEmail = jwt.getClaimAsString("email");
         return blogService.findAllRecycleBlogPost(userEmail);
     }

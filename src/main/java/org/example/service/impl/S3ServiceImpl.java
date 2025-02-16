@@ -73,7 +73,7 @@ public class S3ServiceImpl implements S3Service {
 
             return invokeLambda(lambdaEvent);
         } catch (Exception e) {
-            System.out.println(e.getMessage());
+            System.err.println(e.getMessage());
             throw new CustomBadRequestException("Image upload failed");
         }
     }
@@ -136,11 +136,15 @@ public class S3ServiceImpl implements S3Service {
         InvokeResponse invokeResult = lambdaClient.invoke(invokeRequest);
 
         String responsePayload = invokeResult.payload().asUtf8String();
+        System.out.println("Payload: " + responsePayload);
         if (invokeResult.functionError() != null && !invokeResult.functionError().isEmpty()) {
             throw new CustomBadRequestException();
         }
 
-        return new Gson().fromJson(responsePayload, BlogPostResponse.class);
+        System.out.println("Get BlogPostResponse");
+        BlogPostResponse response = new Gson().fromJson(responsePayload, BlogPostResponse.class);
+        System.out.println(response.toString());
+        return response;
     }
 
 

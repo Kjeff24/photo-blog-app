@@ -14,19 +14,19 @@ Parameters:
     Type: String
     Default: "http://localhost:4200"
     Description: The localhost of my frontend
-  PhotoBlogPrimaryBucket:
+  PrimaryBucket:
     Type: String
     Default: "photo-blog-app-primary-bucket"
     Description: Primary bucket for s3 bucket
-  PhotoBlogBackupBucket:
+  BackupBucket:
     Type: String
     Default: "photo-blog-app-backup-bucket"
     Description: Backup bucket for s3 bucket
-  PhotoBlogPrimaryStagingBucket:
+  PrimaryStagingBucket:
     Type: String
     Default: "photo-blog-app-primary-staging-bucket"
     Description: Primary staging bucket
-  PhotoBlogBackupStagingBucket:
+  BackupStagingBucket:
     Type: String
     Default: "photo-blog-app-backup-staging-bucket"
     Description: Backup staging bucket
@@ -68,33 +68,32 @@ Resources:
       MemorySize: 512
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Statement:
-            Effect: Allow
-            Action:
-              - s3:PutObject
-              - s3:DeleteObject
-              - s3:GetObject
-              - s3:CopyObject
-            Resource:
-              - !Sub
-                - arn:aws:s3:::${MainBucket}
-                - MainBucket: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
-              - !Sub
-                - arn:aws:s3:::${StagingBucket}
-                - StagingBucket: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryStagingBucket
-                    - !Ref PhotoBlogBackupStagingBucket
-        - Statement:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:DeleteObject
+                - s3:GetObject
+                - s3:CopyObject
+              Resource:
+                - !Sub
+                  - arn:aws:s3:::${MainBucket}
+                  - MainBucket: !If
+                      - IsPrimaryRegion
+                      - !Ref PrimaryBucket
+                      - !Ref BackupBucket
+                - !Sub
+                  - arn:aws:s3:::${StagingBucket}
+                  - StagingBucket: !If
+                      - IsPrimaryRegion
+                      - !Ref PrimaryStagingBucket
+                      - !Ref BackupStagingBucket
             - Effect: Allow
               Action:
                 - lambda:InvokeFunction
               Resource:
                 - !GetAtt ImageProcessingLambda.Arn
-        - Statement:
             - Effect: Allow
               Action:
                 - dynamodb:PutItem
@@ -106,12 +105,11 @@ Resources:
               Resource:
                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
                 - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}/index/*
-        - Statement:
-            Effect: Allow
-            Action:
-              - cognito-idp:ListUsers
-              - cognito-idp:AdminGetUser
-            Resource: !GetAtt UserPool.Arn
+            - Effect: Allow
+              Action:
+                - cognito-idp:ListUsers
+                - cognito-idp:AdminGetUser
+              Resource: !GetAtt UserPool.Arn
       Timeout: 30
       Events:
         ProxyResource:
@@ -123,12 +121,12 @@ Resources:
         Variables:
           S3_BUCKET_PRIMARY: !If
             - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryBucket
-            - !Ref PhotoBlogBackupBucket
+            - !Ref PrimaryBucket
+            - !Ref BackupBucket
           S3_BUCKET_STAGING: !If
             - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryStagingBucket
-            - !Ref PhotoBlogBackupStagingBucket
+            - !Ref PrimaryStagingBucket
+            - !Ref BackupStagingBucket
           DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
           IMAGE_PROCESSING_LAMBDA: !Ref ImageProcessingLambda
           TASK_QUEUE: !Ref TaskQueue
@@ -169,52 +167,50 @@ Resources:
       Timeout: 30
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Statement:
-            Effect: Allow
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-              - s3:DeleteObject
-              - s3:ListBucket
-            Resource:
-              - !Sub
-                - arn:aws:s3:::${MainBucket}
-                - MainBucket: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryBucket
-                    - !Ref PhotoBlogBackupBucket
-              - !Sub
-                - arn:aws:s3:::${StagingBucket}
-                - StagingBucket: !If
-                    - IsPrimaryRegion
-                    - !Ref PhotoBlogPrimaryStagingBucket
-                    - !Ref PhotoBlogBackupStagingBucket
-        - Statement:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+                - s3:ListBucket
+              Resource:
+                - !Sub
+                  - arn:aws:s3:::${MainBucket}
+                  - MainBucket: !If
+                      - IsPrimaryRegion
+                      - !Ref PrimaryBucket
+                      - !Ref BackupBucket
+                - !Sub
+                  - arn:aws:s3:::${StagingBucket}
+                  - StagingBucket: !If
+                      - IsPrimaryRegion
+                      - !Ref PrimaryStagingBucket
+                      - !Ref BackupStagingBucket
             - Effect: Allow
               Action:
                 - states:StartExecution
               Resource:
                 - !GetAtt StepFunctionStateMachine.Arn
-        - Statement:
             - Effect: Allow
               Action:
                 - sqs:sendmessage
               Resource:
                 - !GetAtt TaskQueue.Arn
-        - Statement:
-            Effect: Allow
-            Action:
-              - dynamodb:PutItem
-              - dynamodb:UpdateItem
-              - dynamodb:GetItem
-            Resource:
-              - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:GetItem
+              Resource:
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
       Environment:
         Variables:
           S3_BUCKET_PRIMARY: !If
             - IsPrimaryRegion
-            - !Ref PhotoBlogPrimaryBucket
-            - !Ref PhotoBlogBackupBucket
+            - !Ref PrimaryBucket
+            - !Ref BackupBucket
           DYNAMODB_TABLE: !Ref DynamoDBGlobalTable
           STEP_FUNCTION_ARN: !Ref StepFunctionStateMachine
           TASK_QUEUE: !Ref TaskQueue
@@ -231,21 +227,21 @@ Resources:
       Timeout: 30
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Statement:
-            Effect: Allow
-            Action:
-              - sqs:ReceiveMessage
-              - sqs:DeleteMessage
-              - sqs:GetQueueAttributes
-            Resource: !GetAtt TaskQueue.Arn
-        - Statement:
-            Effect: Allow
-            Action:
-              - sns:Publish
-              - sns:ListSubscriptionsByTopic
-              - sns:GetSubscriptionAttributes
-              - sns:SetSubscriptionAttributes
-            Resource: !Ref NotificationTopic
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt TaskQueue.Arn
+            - Effect: Allow
+              Action:
+                - sns:Publish
+                - sns:ListSubscriptionsByTopic
+                - sns:GetSubscriptionAttributes
+                - sns:SetSubscriptionAttributes
+              Resource: !Ref NotificationTopic
       Environment:
         Variables:
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopic
@@ -268,26 +264,25 @@ Resources:
       Timeout: 30
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Statement:
-            Effect: Allow
-            Action:
-              - sns:Subscribe
-            Resource:
-              - !Ref NotificationTopic
-        - Statement:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sns:Subscribe
+              Resource:
+                - !Ref NotificationTopic
             - Effect: Allow
               Action:
                 - sqs:sendmessage
               Resource:
                 - !GetAtt TaskQueue.Arn
-        - Statement:
-            Effect: Allow
-            Action:
-              - dynamodb:PutItem
-              - dynamodb:UpdateItem
-              - dynamodb:GetItem
-            Resource:
-              - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:GetItem
+              Resource:
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBGlobalTable}
       Environment:
         Variables:
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopic

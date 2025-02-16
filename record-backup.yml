@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Secondary API Failover
+
+Parameters:
+  BackupRegionalDomainName:
+    Type: String
+    Description: "Secondary API Gateway regional domain name (e.g. xxxx.execute-api.<region>.amazonaws.com)"
+  HostedZoneName:
+    Type: String
+    Description: "The name of the Route 53 hosted zone (must end with a dot e.g. photoblog.com.)"
+  DomainName:
+    Type: String
+    Description: "Domain name used for both primary and backup api gateway (e.g. api.photoblog.com)"
+  BackupHostedZoneID:
+    Type: String
+    Description: "backup region route 53 hosted zone ID"
+
+Resources:
+  # ✅ Route 53 Failover DNS Record for backup api gateway
+  Route53FailoverRecordSecondary:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Ref DomainName
+      Type: A
+      SetIdentifier: "Secondary"
+      Failover: SECONDARY
+      AliasTarget:
+        DNSName: !Ref BackupRegionalDomainName
+        HostedZoneId: !Ref BackupHostedZoneID

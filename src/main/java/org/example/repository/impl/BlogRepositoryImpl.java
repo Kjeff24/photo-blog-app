@@ -17,10 +17,11 @@ import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -58,34 +59,50 @@ public class BlogRepositoryImpl implements BlogRepository {
                 .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
                 .build();
 
-        return index.query(r -> r
+        List<BlogPost> blogPosts = index.query(r -> r
                         .queryConditional(QueryConditional.keyEqualTo(
                                 Key.builder().partitionValue("photo").build()
                         ))
                         .filterExpression(filterExpression))
                 .stream()
-                .flatMap(page -> Optional.ofNullable(page.items()).orElse(Collections.emptyList()).stream())
+                .flatMap(page -> page.items().stream())
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(blogPostMapper::toBlogPostResponse)
                 .toList();
+
+        if (!blogPosts.isEmpty()) {
+            return blogPosts.stream()
+                    .filter(Objects::nonNull)
+                    .map(blogPostMapper::toBlogPostResponse)
+                    .toList();
+        } else {
+            return new ArrayList<>();
+        }
     }
-
-
 
 
     public List<BlogPostResponse> findAllByUserEmail(String userEmail) {
         DynamoDbIndex<BlogPost> index = getTable().index("OwnerIndex");
-        return index.query(r -> r.queryConditional(
+        List<BlogPost> blogPosts = index.query(r -> r.queryConditional(
                                 QueryConditional.keyEqualTo(k -> k.partitionValue(userEmail)))
                         .filterExpression(Expression.builder()
                                 .expression("deleteStatus <> :deletedStatus")
                                 .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
                                 .build()))
                 .stream()
-                .flatMap(page -> Optional.ofNullable(page.items()).orElse(Collections.emptyList()).stream())
+                .map(Page::items)
+                .flatMap(List::stream)
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(blogPostMapper::toBlogPostResponse)
                 .toList();
+
+
+        if (!blogPosts.isEmpty()) {
+            return blogPosts.stream()
+                    .filter(Objects::nonNull)
+                    .map(blogPostMapper::toBlogPostResponse)
+                    .toList();
+        } else {
+            return new ArrayList<>();
+        }
     }
 
     public boolean deleteBlogPost(String photoId, String owner) {
@@ -102,7 +119,7 @@ public class BlogRepositoryImpl implements BlogRepository {
     public void updateDeleteStatusAndImageKey(String photoId, String owner, int i, String imageKey) {
         Optional<BlogPost> blogPost = findByPhotoIdAndOwner(photoId, owner);
 
-        if(blogPost.isPresent()) {
+        if (blogPost.isPresent()) {
             blogPost.get().setDeleteStatus(i);
             blogPost.get().setImageKey(imageKey);
             save(blogPost.get());
@@ -111,17 +128,27 @@ public class BlogRepositoryImpl implements BlogRepository {
 
     public List<BlogPostResponse> findAllByUserAndDeleteStatus(String owner, int i) {
         DynamoDbIndex<BlogPost> index = getTable().index("OwnerIndex");
-        return index.query(r -> r.queryConditional(
+        List<BlogPost> blogPosts = index.query(r -> r.queryConditional(
                                 QueryConditional.keyEqualTo(k -> k.partitionValue(owner)))
                         .filterExpression(Expression.builder()
                                 .expression("deleteStatus = :deletedStatus")
                                 .expressionValues(Map.of(":deletedStatus", AttributeValue.builder().n("1").build()))
                                 .build()))
                 .stream()
-                .flatMap(page -> Optional.ofNullable(page.items()).orElse(Collections.emptyList()).stream())
+                .map(Page::items)
+                .flatMap(List::stream)
                 .sorted(Comparator.comparing(BlogPost::getUploadDate, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(blogPostMapper::toBlogPostResponse)
                 .toList();
+
+
+        if (!blogPosts.isEmpty()) {
+            return blogPosts.stream()
+                    .filter(Objects::nonNull)
+                    .map(blogPostMapper::toBlogPostResponse)
+                    .toList();
+        } else {
+            return new ArrayList<>();
+        }
     }
 
     private Key getKey(String photoId, String owner) {

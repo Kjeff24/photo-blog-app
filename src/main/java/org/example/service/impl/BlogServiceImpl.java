@@ -56,7 +56,7 @@ public class BlogServiceImpl implements BlogService {
             } else {
                 // Restore from recycle bin
                 String sourceKey = recycleBin + photoId;
-                imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + sourceKey;
+                imageUrl = "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + photoId;
                 s3Service.moveObject(sourceKey, photoId);
                 s3Service.deleteObject(sourceKey);
                 blogRepository.updateDeleteStatusAndImageUrl(photoId, userEmail, 0, imageUrl);

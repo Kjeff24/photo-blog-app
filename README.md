@@ -40,6 +40,9 @@ aws acm list-certificates --region <region>
   - BackupStagingBucket: Backup staging s3 bucket
   - PrimaryRegion: Primary region name
   - BackupRegion: Backup region name
+- NB:
+  - Deploy to back-up region before the primary region, this is because back-up bucket must exist before replication of primary bucket. 
+  - If any error such as "A conflicting conditional operation is currently in progress against this resource." ensure your bucket names are unique
 ```bash
 aws cloudformation deploy \
 --template-file s3-bucket.yml \

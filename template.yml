@@ -16,19 +16,19 @@ Parameters:
     Description: The localhost of my frontend
   PrimaryBucket:
     Type: String
-    Default: "photo-blog-app-primary-bucket"
+    Default: "photo-blog-app-primary-bucket-24"
     Description: Primary bucket for s3 bucket
   BackupBucket:
     Type: String
-    Default: "photo-blog-app-backup-bucket"
+    Default: "photo-blog-app-backup-bucket-24"
     Description: Backup bucket for s3 bucket
   PrimaryStagingBucket:
     Type: String
-    Default: "photo-blog-app-primary-staging-bucket"
+    Default: "photo-blog-app-primary-staging-bucket-24"
     Description: Primary staging bucket
   BackupStagingBucket:
     Type: String
-    Default: "photo-blog-app-backup-staging-bucket"
+    Default: "photo-blog-app-backup-staging-bucket-24"
     Description: Backup staging bucket
   DynamoDBGlobalTable:
     Type: String

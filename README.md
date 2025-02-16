@@ -54,12 +54,26 @@ aws cloudformation deploy \
   BackupRegion=${BACKUP_REGION} \
 --region us-east-1
 ```
-4. You can use the SAM CLI to quickly build the project
+4. Deploy dynamodb global table
+- Parameters include:
+  - BACKUP_REGION: Backup region for dynamodb (e.g. eu-west-1)
+  - DYNAMODB_GLOBAL_TABLE: Global dynamodb table name (e.g. dynamodb-global-table)
+```bash
+aws cloudformation deploy \
+--template-file global-dynamodb-table.yml \
+--stack-name "global-dynamodb-table" \
+--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+--parameter-overrides \
+  BackupRegion=${BACKUP_REGION} \
+  DynamoDBGlobalTable=${DYNAMODB_GLOBAL_TABLE} \
+--region eu-central-1
+```
+5. You can use the SAM CLI to quickly build the project
 ```bash
 $ cd photo-blog-app
 $ sam build
 ```
-5. To deploy the application in your AWS account, you can use the SAM CLI's guided deployment process and follow the instructions on the screen
+6. To deploy the application in your AWS account, you can use the SAM CLI's guided deployment process and follow the instructions on the screen
 - Parameters include:
   - FrontendDevHost: The hosted frontend
   - FrontendProdHost: The localhost of my frontend
@@ -76,7 +90,7 @@ $ sam build
 ```bash
 $ sam deploy --guided
 ```
-6. Deploy primary record for route 53 failover.
+7. Deploy primary record for route 53 failover.
 - Use this command to get domain names and its properties.
 NB: Get configuration for both primary and back region. Replace <region> with the appropriate region
 ```
@@ -125,7 +139,7 @@ aws cloudformation deploy \
 }
 ```
 - After getting a status "UP" create a secondary record.
-7. Deploy secondary record for route 53 failover.
+8. Deploy secondary record for route 53 failover.
 - Parameters include:
   - DOMAIN_NAME: Custom domain name used for primary api gateway (e.g. api.photoblog.com)
   - BACKUP_REGIONAL_DOMAIN_NAME: Regional domain name for secondary api gateway (e.g. xxxx.execute-api.<region>.amazonaws.com )

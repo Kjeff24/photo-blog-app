@@ -199,8 +199,8 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         imageMetadata.put("fullName", fullName);
         imageMetadata.put("imageUrl", "https://" + primaryBucket + ".s3." + awsRegion + ".amazonaws.com/" + imageKey);
         imageMetadata.put("uploadDate", uploadDate);
-        imageMetadata.put("deleteStatus", "photo");
-        imageMetadata.put("type", 0);
+        imageMetadata.put("deleteStatus", 0);
+        imageMetadata.put("type", "photo");
 
         return imageMetadata;
     }

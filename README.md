@@ -108,6 +108,7 @@ aws apigateway get-domain-names --region <region>
   - HOSTED_ZONE_NAME: The name of the Route 53 hosted zone (must end with a dot e.g. photoblog.com.)
   - BACKUP_REGION: Backup region (eg. eu-west-1)
   - BACKUP_REGION_USER_POOL_ID: Backup region user pool id
+  - BACKUP_REGION_NOTIFICATION_TOPIC_ARN: Backup region notification topic arn (Subscription email are sent to users when they are created)
   - DYNAMODB_TABLE: Dynamodb global table name
   - AMPLIFY_APP_ID: Amplify app ID for hosted frontend
   - AMPLIFY_BRANCH_NAME: Branch name for hosted frontend
@@ -117,8 +118,8 @@ aws apigateway get-domain-names --region <region>
   - CloudWatch alarms that monitor Route 53 health checks must be created in us-east-1 because the underlying health check metrics are only available in that region.
 ```bash
 aws cloudformation deploy \
---template-file record-primary.yml \
---stack-name "record-primary" \
+--template-file route-53-record-primary.yml \
+--stack-name "route-53-record-primary" \
 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
 --parameter-overrides \
   DomainName=${DOMAIN_NAME} \
@@ -129,6 +130,7 @@ aws cloudformation deploy \
   HostedZoneName=${HOSTED_ZONE_NAME} \
   BackupRegion=${BACKUP_REGION} \
   BackupRegionUserPoolId=${BACKUP_REGION_USER_POOL_ID} \
+  BackupRegionNotificationTopicArn=${BACKUP_REGION_NOTIFICATION_TOPIC_ARN} \
   GlobalDynamodbTable=${DYNAMODB_TABLE} \
   AmplifyAppId=${AMPLIFY_APP_ID} \
   AmplifyBranchName=${AMPLIFY_BRANCH_NAME} \
@@ -151,8 +153,8 @@ aws cloudformation deploy \
   - DOMAIN_NAME: Custom domain name used for primary api gateway (e.g. api.photoblog.com)
 ```bash
 aws cloudformation deploy \
---template-file record-backup.yml \
---stack-name "record-backup" \
+--template-file route-53-record-backup.yml \
+--stack-name "route-53-record-backup" \
 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
 --parameter-overrides \
   DomainName=${DOMAIN_NAME} \

@@ -1,0 +1,589 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Primary API Failover using Route 53, CloudWatch Alarm, and Lambda
+
+Parameters:
+  AdminEmail:
+    Type: String
+    Description: "Administrator email for failover notifications"
+  DomainName:
+    Type: String
+    Description: "Domain name used for both primary and backup api gateway (e.g. api.photoblog.com)"
+  PrimaryRegionalDomainName:
+    Type: String
+    Description: "Primary API Gateway regional domain name (e.g. xxxx.execute-api.<region>.amazonaws.com)"
+  PrimaryHostedZoneID:
+    Type: String
+    Description: "primary region route 53 hosted zone ID"
+  PrimaryApiGatewayInvokeUrl:
+    Type: String
+    Description: "invoke url of your primary gateway (e.g. <serverless-api>.execute-api.eu-central-1.amazonaws.com). Don't attach stage name"
+  HostedZoneName:
+    Type: String
+    Description: "The name of the Route 53 hosted zone (must end with a dot e.g. photoblog.com.)"
+  BackupRegion:
+    Type: String
+    Default: "eu-west-1"
+    Description: "Backup region"
+  BackupRegionUserPoolId:
+    Type: String
+    Description: "User pool ID in backup region"
+  BackupRegionNotificationTopicArn:
+    Type: String
+    Description: "Notification topic to send message to users"
+  GlobalDynamodbTable:
+    Type: String
+    Default: "dynamodb-global-table"
+    Description: "Global DynamoDB table name"
+  AmplifyBranchName:
+    Type: String
+    Description: "Branch name"
+  AmplifyAppId:
+    Type: String
+    Description: "Frontend amplify app id"
+
+Resources:
+  # ✅ Route 53 Health Check for Primary API
+  Route53HealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: HTTPS
+        ResourcePath: "/Prod/health"
+        FullyQualifiedDomainName: !Ref PrimaryApiGatewayInvokeUrl
+        RequestInterval: 30
+        FailureThreshold: 2
+      HealthCheckTags:
+        - Key: Name
+          Value: "Primary API Health Check"
+
+  # ✅ CloudWatch Alarm for Health Check Failure
+  HealthCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Triggers failover if the primary API health check fails"
+      AlarmName: "APIGatewayHealthCheckFailure"
+      Namespace: "AWS/Route53"
+      MetricName: HealthCheckStatus
+      Dimensions:
+        - Name: HealthCheckId
+          Value: !GetAtt Route53HealthCheck.HealthCheckId
+      ComparisonOperator: LessThanThreshold
+      Threshold: 1
+      Statistic: Minimum
+      Period: 30
+      EvaluationPeriods: 2
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SNSTopic
+  
+  # ✅ Route 53 Failover DNS Record for primary api gateway
+  Route53FailoverRecordPrimary:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Ref DomainName
+      Type: A
+      SetIdentifier: "Primary"
+      HealthCheckId: !Ref Route53HealthCheck
+      Failover: PRIMARY
+      AliasTarget:
+        DNSName: !Ref PrimaryRegionalDomainName
+        HostedZoneId: !Ref PrimaryHostedZoneID
+
+  # ✅ SNS Topic for Notifications
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "ApiFailoverNotification"
+
+  # ✅ Subscribe Admin Email to SNS Topic
+  SNSSubscriptionEmail:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SNSTopic
+      Protocol: email
+      Endpoint: !Ref AdminEmail
+
+  # ✅ Subscribe Lambda to SNS Topic
+  SNSSubscriptionLambda:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SNSTopic
+      Protocol: lambda
+      Endpoint: !GetAtt UpdateAmplifyLambda.Arn
+
+  # ✅ Lambda Function to update amplify
+  UpdateAmplifyLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "UpdateAmplifyLambda"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt UpdateAmplifyLambdaExecutionRole.Arn
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          BACKUP_REGION: !Ref BackupRegion
+          BACKUP_REGION_USER_POOL_ID: !Ref BackupRegionUserPoolId
+          AMPLIFY_APP_ID : !Ref AmplifyAppId
+          BRANCH_NAME: !Ref AmplifyBranchName
+          STATE_MACHINE_ARN: !Ref StepFunctionStateMachine
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          import json
+
+          # Initialize AWS clients
+          def initialize_clients(backup_region):
+            return {
+            'cognito': boto3.client('cognito-idp', region_name=backup_region),
+            'amplify': boto3.client('amplify', region_name=backup_region),
+            'sfn': boto3.client('stepfunctions'),
+          }
+          
+          # Update Amplify environment variables
+          def update_amplify(amplify_client, cognito_client, amplify_app_id, backup_user_pool_id, backup_region, branch_name):
+            try:
+              # Get User Pool details
+              user_pool_info = cognito_client.describe_user_pool(UserPoolId=backup_user_pool_id)
+              domain = user_pool_info['UserPool'].get('Domain')
+          
+              # Get User Pool App Client details
+              app_clients = cognito_client.list_user_pool_clients(UserPoolId=backup_user_pool_id, MaxResults=10)
+              if not app_clients['UserPoolClients']:
+                raise Exception("No app clients found in the user pool.")
+              client_id = app_clients['UserPoolClients'][0]['ClientId']
+          
+              client_details = cognito_client.describe_user_pool_client(
+              UserPoolId=backup_user_pool_id,
+              ClientId=client_id
+              )
+          
+              # Extract client secret
+              client_secret = client_details['UserPoolClient'].get('ClientSecret', 'No secret found')
+          
+              # Get existing environment variables
+              app_details = amplify_client.get_app(appId=amplify_app_id)
+              env_vars = app_details['app']['environmentVariables']
+          
+              # Construct endpoints
+              USER_POOL_DOMAIN_URI = f"https://{domain}.auth.{backup_region}.amazoncognito.com"
+          
+              # Update environment variables
+              env_vars.update({
+              "USER_POOL_DOMAIN_URI": USER_POOL_DOMAIN_URI,
+              "CLIENT_ID": client_id,
+              "CLIENT_SECRET" : client_secret
+            })
+          
+              # Apply updated variables in Amplify
+              amplify_client.update_app(
+              appId=amplify_app_id,
+              environmentVariables=env_vars
+              )
+          
+              # Trigger a redeployment in Amplify
+              response = amplify_client.start_job(
+              appId=amplify_app_id,
+              branchName=branch_name,
+              jobType="RELEASE"
+              )
+              # Return the job ID
+              return response.get('jobSummary', {}).get('jobId', None)
+          
+            except Exception as e:
+              print(f"Error updating Amplify: {e}")
+              return None
+          
+          # Main Lambda handler
+          def lambda_handler(event, context):
+            print("Lambda has been invoked")
+            # Load environment variables
+            env_vars = {
+            'backup_region': os.environ['BACKUP_REGION'],
+            'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
+            'amplify_app_id': os.environ['AMPLIFY_APP_ID'],
+            'branch_name': os.environ['BRANCH_NAME'],
+            'state_machine_arn': os.environ['STATE_MACHINE_ARN']
+          }
+          
+            # Initialize AWS clients
+            clients = initialize_clients(env_vars['backup_region'])
+          
+            # Update Amplify environment variables
+            job_id = update_amplify(
+            clients['amplify'],
+            clients['cognito'],
+            env_vars['amplify_app_id'],
+            env_vars['backup_user_pool_id'],
+            env_vars['backup_region'],
+            env_vars['branch_name']
+            )
+            
+            if job_id:
+              print(f"Amplify deployment started with Job ID: {job_id}")
+          
+              # Pass the Job ID to Step Functions
+              clients['sfn'].start_execution(
+                stateMachineArn=env_vars['state_machine_arn'],
+                input=json.dumps({"jobId": job_id})
+              )
+            else:
+              print("Failed to retrieve Job ID from Amplify.")
+            
+            return {
+            'statusCode': 200,
+            'body': json.dumps('Update amplify')
+          }
+
+  # ✅ Lambda Function to check amplify job status
+  CheckAmplifyJobStatusLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "CheckAmplifyJobStatusLambda"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt CheckAmplifyJobStatusLambdaExecutionRole.Arn
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          AMPLIFY_APP_ID : !Ref AmplifyAppId
+          BRANCH_NAME: !Ref AmplifyBranchName
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          import json
+          
+          amplify = boto3.client('amplify')
+
+          def lambda_handler(event, context):
+            app_id = os.environ['AMPLIFY_APP_ID']
+            branch_name = os.environ['BRANCH_NAME']
+            job_id = event['jobId']
+          
+            response = amplify.get_job(appId=app_id, branchName=branch_name, jobId=job_id)
+            job_status = response['job']['summary']['status']
+          
+            if job_status == "SUCCEED":
+              return {"status": "SUCCEED"}
+            elif job_status == "FAILED":
+              return {"status": "FAILED"}
+            elif job_status == "CANCELLED":
+              return {"status": "CANCELLED"}
+            else:
+              return {"status": "IN_PROGRESS"}
+
+  # ✅ Lambda Function to create users
+  CreateUserLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "CreateUserLambda"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt CreateUserLambdaExecutionRole.Arn
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          BACKUP_REGION: !Ref BackupRegion
+          BACKUP_REGION_USER_POOL_ID: !Ref BackupRegionUserPoolId
+          DYNAMODB_TABLE: !Ref GlobalDynamodbTable
+          BACKUP_REGION_NOTIFICATION_TOPIC_ARN: !Ref BackupRegionNotificationTopicArn
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          import json
+
+          # Initialize AWS clients
+          def initialize_clients(backup_region):
+            return {
+            'dynamodb': boto3.client('dynamodb', region_name=backup_region),
+            'cognito': boto3.client('cognito-idp', region_name=backup_region),
+            'sns': boto3.client('sns', region_name=backup_region)
+          }
+          
+          # Query DynamoDB for user data
+          def query_dynamodb(dynamodb_client, table_name):
+            return dynamodb_client.query(
+            TableName=table_name,
+            IndexName="TypeIndex",
+            KeyConditionExpression="#t = :typeValue",
+            ExpressionAttributeNames={"#t": "type"},
+            ExpressionAttributeValues={":typeValue": {"S": "user"}}
+            )
+          
+          # Create users in Cognito
+          def create_cognito_users(cognito_client, sns_client, user_pool_id, topic_arn, users):
+            for user in users:
+              email = user.get('pk', {}).get('S')
+              full_name = user.get('sk', {}).get('S')
+          
+              if email and full_name:
+                try:
+                  # Check if the user already exists
+                  cognito_client.admin_get_user(
+                  UserPoolId=user_pool_id,
+                  Username=email
+                  )
+                  print(f"User {email} already exists.")
+                except cognito_client.exceptions.UserNotFoundException:
+                  # If the user does not exist, create them
+                  try:
+                      cognito_client.admin_create_user(
+                        UserPoolId=user_pool_id,
+                        Username=email,
+                        UserAttributes=[
+                        {'Name': 'email', 'Value': email},
+                    {'Name': 'name', 'Value': full_name}
+                  ]
+                        )
+                        print(f"User {email} created successfully.")
+                        subscribe_user_to_sns(sns_client, topic_arn, email)
+                  except Exception as e:
+                    print(f"Error creating user {email}: {e}")
+                  except Exception as e:
+                    print(f"Error checking user {email}: {e}")
+          
+          # Subscribe user to sns
+          def subscribe_user_to_sns(sns_client, topic_arn, email):
+            try:
+              response = sns_client.subscribe(
+                TopicArn=topic_arn,
+                Protocol='email',
+                Endpoint=email
+              )
+              print(f"User {email} subscribed to SNS topic {topic_arn}. Subscription ARN: {response['SubscriptionArn']}")
+            except Exception as e:
+              print(f"Error subscribing {email} to SNS topic: {e}")
+          
+          
+          
+          # Main Lambda handler
+          def lambda_handler(event, context):
+            print("Lambda has been invoked")
+            # Load environment variables
+            env_vars = {
+            'backup_region': os.environ['BACKUP_REGION'],
+            'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
+            'dynamodb_table': os.environ['DYNAMODB_TABLE'],
+            'sns_topic_arn': os.environ['BACKUP_REGION_NOTIFICATION_TOPIC_ARN']
+          }
+          
+            # Initialize AWS clients
+            clients = initialize_clients(env_vars['backup_region'])
+          
+            # Query DynamoDB for user data
+            dynamodb_response = query_dynamodb(clients['dynamodb'], env_vars['dynamodb_table'])
+          
+            # Create users in Cognito
+            create_cognito_users(clients['cognito'], clients['sns'], env_vars['backup_user_pool_id'], env_vars['sns_topic_arn'], dynamodb_response.get('Items', []))
+          
+            return {
+            'statusCode': 200,
+            'body': json.dumps('Amplify and cognito user pool updated')
+          }
+
+  # Step function state machine
+  StepFunctionStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub ${AWS::StackName}-StepFunctionStateMachine
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Step Function to wait for completion, then create users",
+          "StartAt": "Wait for Completion",
+          "States": {
+            "Wait for Completion": {
+              "Type": "Wait",
+              "Seconds": 120,
+              "Next": "Check Job Status"
+            },
+            "Check Job Status": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CheckAmplifyJobStatusLambda}",
+              "InputPath": "$",
+              "ResultPath": "$.status",
+              "Next": "Is Job Complete?"
+            },
+            "Is Job Complete?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.status",
+                  "StringEquals": "SUCCEED",
+                  "Next": "Create Cognito Users"
+                },
+                {
+                  "Variable": "$.status",
+                  "StringEquals": "FAILED",
+                  "Next": "Fail State"
+                },
+                {
+                  "Variable": "$.status",
+                  "StringEquals": "CANCELLED",
+                  "Next": "Fail State"
+                }
+              ],
+              "Default": "Wait for Completion"
+            },
+            "Create Cognito Users": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateUserLambda}",
+              "End": true
+            },
+            "Fail State": {
+              "Type": "Fail",
+              "Error": "JobFailed",
+              "Cause": "Amplify Job failed."
+            }
+          }
+        }
+        
+
+  # ✅ Permissions for SNS to invoke Lambda
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Ref UpdateAmplifyLambda
+      Principal: "sns.amazonaws.com"
+      SourceArn: !Ref SNSTopic
+
+  # ✅ Failover lambda function role
+  UpdateAmplifyLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "UpdateAmplifyLambdaExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "cognito-idp:DescribeUserPool"
+                  - "cognito-idp:ListUserPoolClients"
+                  - "cognito-idp:DescribeUserPoolClient"
+                Resource:
+                  - !Sub "arn:aws:cognito-idp:${BackupRegion}:${AWS::AccountId}:userpool/${BackupRegionUserPoolId}"
+              - Effect: Allow
+                Action:
+                  - "amplify:GetApp"
+                  - "amplify:UpdateApp"
+                  - "amplify:StartJob"
+                Resource:
+                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}"
+                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+
+  CreateUserLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action: "sts:AssumeRole"
+            Principal:
+              Service: "lambda.amazonaws.com"
+      Policies:
+        - PolicyName: "CreateUserLambdaExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:Query"
+                Resource:
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${GlobalDynamodbTable}
+                  - !Sub arn:aws:dynamodb:${BackupRegion}:${AWS::AccountId}:table/${GlobalDynamodbTable}/index/*
+              - Effect: "Allow"
+                Action:
+                  - "cognito-idp:AdminGetUser"
+                  - "cognito-idp:AdminCreateUser"
+                Resource:
+                  - !Sub "arn:aws:cognito-idp:${BackupRegion}:${AWS::AccountId}:userpool/${BackupRegionUserPoolId}"
+              - Effect: "Allow"
+                Action:
+                  - "sns:Subscribe"
+                Resource:
+                  - !Ref BackupRegionNotificationTopicArn
+              - Effect: "Allow"
+                Action:
+                  - "states:StartExecution"
+                Resource:
+                  - !GetAtt StepFunctionStateMachine.Arn
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+
+  CheckAmplifyJobStatusLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action: "sts:AssumeRole"
+            Principal:
+              Service: "lambda.amazonaws.com"
+      Policies:
+        - PolicyName: "CheckAmplifyJobStatusLambdaExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "amplify:GetJob"
+                Resource:
+                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}"
+                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+
+  # Step Functions Role
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: StepFunctionsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateUserLambda}
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CheckAmplifyJobStatusLambda}

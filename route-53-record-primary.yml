@@ -27,6 +27,9 @@ Parameters:
   BackupRegionUserPoolId:
     Type: String
     Description: "User pool ID in backup region"
+  BackupRegionNotificationTopicArn:
+    Type: String
+    Description: "Notification topic to send message to users"
   GlobalDynamodbTable:
     Type: String
     Default: "dynamodb-global-table"
@@ -126,6 +129,7 @@ Resources:
           DYNAMODB_TABLE: !Ref GlobalDynamodbTable
           AMPLIFY_APP_ID : !Ref AmplifyAppId
           BRANCH_NAME: !Ref AmplifyBranchName
+          BACKUP_REGION_NOTIFICATION_TOPIC_ARN: !Ref BackupRegionNotificationTopicArn
       Code:
         ZipFile: |
           import os
@@ -137,7 +141,8 @@ Resources:
             return {
               'dynamodb': boto3.client('dynamodb', region_name=backup_region),
               'cognito': boto3.client('cognito-idp', region_name=backup_region),
-              'amplify': boto3.client('amplify', region_name=backup_region)
+              'amplify': boto3.client('amplify', region_name=backup_region),
+              'sns': boto3.client('sns', region_name=backup_region)
             }
 
           # Query DynamoDB for user data
@@ -160,8 +165,8 @@ Resources:
                 try:
                   # Check if the user already exists
                   cognito_client.admin_get_user(
-                  UserPoolId=user_pool_id,
-                  Username=email
+                    UserPoolId=user_pool_id,
+                    Username=email
                   )
                   print(f"User {email} already exists.")
                 except cognito_client.exceptions.UserNotFoundException:
@@ -176,6 +181,7 @@ Resources:
                       ]
                     )
                     print(f"User {email} created successfully.")
+                    subscribe_user_to_sns(sns_client, topic_arn, email)
                   except Exception as e:
                     print(f"Error creating user {email}: {e}")
                   except Exception as e:
@@ -191,7 +197,7 @@ Resources:
               # Get User Pool App Client details
               app_clients = cognito_client.list_user_pool_clients(UserPoolId=backup_user_pool_id, MaxResults=10)
               if not app_clients['UserPoolClients']:
-                  raise Exception("No app clients found in the user pool.")
+                raise Exception("No app clients found in the user pool.")
               client_id = app_clients['UserPoolClients'][0]['ClientId']
 
               client_details = cognito_client.describe_user_pool_client(
@@ -230,7 +236,19 @@ Resources:
               )
             except Exception as e:
               print(f"Error updating Amplify: {e}")
+          
+          def subscribe_user_to_sns(sns_client, topic_arn, email):
+            try:
+              response = sns_client.subscribe(
+                TopicArn=topic_arn,
+                Protocol='email',
+                Endpoint=email
+              )
+              print(f"User {email} subscribed to SNS topic {topic_arn}. Subscription ARN: {response['SubscriptionArn']}")
+            except Exception as e:
+                print(f"Error subscribing {email} to SNS topic: {e}")
 
+          
           # Main Lambda handler
           def lambda_handler(event, context):
             print("Lambda has been invoked")
@@ -240,7 +258,8 @@ Resources:
               'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
               'dynamodb_table': os.environ['DYNAMODB_TABLE'],
               'amplify_app_id': os.environ['AMPLIFY_APP_ID'],
-              'branch_name': os.environ['BRANCH_NAME']
+              'branch_name': os.environ['BRANCH_NAME'],
+              'sns_topic_arn': os.environ['BACKUP_REGION_NOTIFICATION_TOPIC_ARN']
             }
 
             # Initialize AWS clients

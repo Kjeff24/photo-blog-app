@@ -8,9 +8,7 @@ import lombok.Data;
 public class BlogPostResponse {
     private String pk;
     private String sk;
-    private String type;
     private String fullName;
     private String imageUrl;
     private String uploadDate;
-    private int deleteStatus;
 }

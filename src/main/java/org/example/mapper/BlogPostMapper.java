@@ -16,10 +16,8 @@ public class BlogPostMapper {
         return BlogPostResponse.builder()
                 .pk(blogPost.getPk())
                 .sk(blogPost.getSk())
-                .type(blogPost.getType())
                 .fullName(blogPost.getFullName())
                 .imageUrl("https://" + bucket + ".s3." + region + ".amazonaws.com/" + blogPost.getImageKey())
-                .deleteStatus(blogPost.getDeleteStatus())
                 .uploadDate(blogPost.getUploadDate())
                 .build();
     }

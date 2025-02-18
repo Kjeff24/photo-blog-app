@@ -157,8 +157,8 @@ Resources:
               client_id = app_clients['UserPoolClients'][0]['ClientId']
           
               client_details = cognito_client.describe_user_pool_client(
-              UserPoolId=backup_user_pool_id,
-              ClientId=client_id
+                UserPoolId=backup_user_pool_id,
+                ClientId=client_id
               )
           
               # Extract client secret
@@ -173,22 +173,22 @@ Resources:
           
               # Update environment variables
               env_vars.update({
-              "USER_POOL_DOMAIN_URI": USER_POOL_DOMAIN_URI,
-              "CLIENT_ID": client_id,
-              "CLIENT_SECRET" : client_secret
-            })
+                "USER_POOL_DOMAIN_URI": USER_POOL_DOMAIN_URI,
+                "CLIENT_ID": client_id,
+                "CLIENT_SECRET" : client_secret
+              })
           
               # Apply updated variables in Amplify
               amplify_client.update_app(
-              appId=amplify_app_id,
-              environmentVariables=env_vars
+                appId=amplify_app_id,
+                environmentVariables=env_vars
               )
           
               # Trigger a redeployment in Amplify
               response = amplify_client.start_job(
-              appId=amplify_app_id,
-              branchName=branch_name,
-              jobType="RELEASE"
+                appId=amplify_app_id,
+                branchName=branch_name,
+                jobType="RELEASE"
               )
               # Return the job ID
               return response.get('jobSummary', {}).get('jobId', None)
@@ -202,26 +202,26 @@ Resources:
             print("Lambda has been invoked")
             # Load environment variables
             env_vars = {
-            'backup_region': os.environ['BACKUP_REGION'],
-            'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
-            'amplify_app_id': os.environ['AMPLIFY_APP_ID'],
-            'branch_name': os.environ['BRANCH_NAME'],
-            'state_machine_arn': os.environ['STATE_MACHINE_ARN']
-          }
+              'backup_region': os.environ['BACKUP_REGION'],
+              'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
+              'amplify_app_id': os.environ['AMPLIFY_APP_ID'],
+              'branch_name': os.environ['BRANCH_NAME'],
+              'state_machine_arn': os.environ['STATE_MACHINE_ARN']
+            }
           
             # Initialize AWS clients
             clients = initialize_clients(env_vars['backup_region'])
           
             # Update Amplify environment variables
             job_id = update_amplify(
-            clients['amplify'],
-            clients['cognito'],
-            env_vars['amplify_app_id'],
-            env_vars['backup_user_pool_id'],
-            env_vars['backup_region'],
-            env_vars['branch_name']
+              clients['amplify'],
+              clients['cognito'],
+              env_vars['amplify_app_id'],
+              env_vars['backup_user_pool_id'],
+              env_vars['backup_region'],
+              env_vars['branch_name']
             )
-            
+          
             if job_id:
               print(f"Amplify deployment started with Job ID: {job_id}")
           
@@ -232,11 +232,11 @@ Resources:
               )
             else:
               print("Failed to retrieve Job ID from Amplify.")
-            
+          
             return {
-            'statusCode': 200,
-            'body': json.dumps('Update amplify')
-          }
+              'statusCode': 200,
+              'body': json.dumps('Update amplify')
+            }
 
   # ✅ Lambda Function to check amplify job status
   CheckAmplifyJobStatusLambda:
@@ -250,6 +250,7 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
+          BACKUP_REGION: !Ref BackupRegion
           AMPLIFY_APP_ID : !Ref AmplifyAppId
           BRANCH_NAME: !Ref AmplifyBranchName
       Code:
@@ -258,7 +259,7 @@ Resources:
           import boto3
           import json
           
-          amplify = boto3.client('amplify')
+          amplify = boto3.client('amplify', region_name=os.environ['BACKUP_REGION'])
 
           def lambda_handler(event, context):
             app_id = os.environ['AMPLIFY_APP_ID']
@@ -266,6 +267,7 @@ Resources:
             job_id = event['jobId']
           
             response = amplify.get_job(appId=app_id, branchName=branch_name, jobId=job_id)
+            print(f"Response: {response}")
             job_status = response['job']['summary']['status']
           
             if job_status == "SUCCEED":
@@ -302,19 +304,19 @@ Resources:
           # Initialize AWS clients
           def initialize_clients(backup_region):
             return {
-            'dynamodb': boto3.client('dynamodb', region_name=backup_region),
-            'cognito': boto3.client('cognito-idp', region_name=backup_region),
-            'sns': boto3.client('sns', region_name=backup_region)
-          }
+              'dynamodb': boto3.client('dynamodb', region_name=backup_region),
+              'cognito': boto3.client('cognito-idp', region_name=backup_region),
+              'sns': boto3.client('sns', region_name=backup_region)
+            }
           
           # Query DynamoDB for user data
           def query_dynamodb(dynamodb_client, table_name):
             return dynamodb_client.query(
-            TableName=table_name,
-            IndexName="TypeIndex",
-            KeyConditionExpression="#t = :typeValue",
-            ExpressionAttributeNames={"#t": "type"},
-            ExpressionAttributeValues={":typeValue": {"S": "user"}}
+              TableName=table_name,
+              IndexName="TypeIndex",
+              KeyConditionExpression="#t = :typeValue",
+              ExpressionAttributeNames={"#t": "type"},
+              ExpressionAttributeValues={":typeValue": {"S": "user"}}
             )
           
           # Create users in Cognito
@@ -327,23 +329,23 @@ Resources:
                 try:
                   # Check if the user already exists
                   cognito_client.admin_get_user(
-                  UserPoolId=user_pool_id,
-                  Username=email
+                    UserPoolId=user_pool_id,
+                    Username=email
                   )
                   print(f"User {email} already exists.")
                 except cognito_client.exceptions.UserNotFoundException:
                   # If the user does not exist, create them
                   try:
-                      cognito_client.admin_create_user(
-                        UserPoolId=user_pool_id,
-                        Username=email,
-                        UserAttributes=[
+                    cognito_client.admin_create_user(
+                      UserPoolId=user_pool_id,
+                      Username=email,
+                      UserAttributes=[
                         {'Name': 'email', 'Value': email},
-                    {'Name': 'name', 'Value': full_name}
-                  ]
-                        )
-                        print(f"User {email} created successfully.")
-                        subscribe_user_to_sns(sns_client, topic_arn, email)
+                        {'Name': 'name', 'Value': full_name}
+                      ]
+                    )
+                    print(f"User {email} created successfully.")
+                    subscribe_user_to_sns(sns_client, topic_arn, email)
                   except Exception as e:
                     print(f"Error creating user {email}: {e}")
                   except Exception as e:
@@ -368,11 +370,11 @@ Resources:
             print("Lambda has been invoked")
             # Load environment variables
             env_vars = {
-            'backup_region': os.environ['BACKUP_REGION'],
-            'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
-            'dynamodb_table': os.environ['DYNAMODB_TABLE'],
-            'sns_topic_arn': os.environ['BACKUP_REGION_NOTIFICATION_TOPIC_ARN']
-          }
+              'backup_region': os.environ['BACKUP_REGION'],
+              'backup_user_pool_id': os.environ['BACKUP_REGION_USER_POOL_ID'],
+              'dynamodb_table': os.environ['DYNAMODB_TABLE'],
+              'sns_topic_arn': os.environ['BACKUP_REGION_NOTIFICATION_TOPIC_ARN']
+            }
           
             # Initialize AWS clients
             clients = initialize_clients(env_vars['backup_region'])
@@ -384,9 +386,9 @@ Resources:
             create_cognito_users(clients['cognito'], clients['sns'], env_vars['backup_user_pool_id'], env_vars['sns_topic_arn'], dynamodb_response.get('Items', []))
           
             return {
-            'statusCode': 200,
-            'body': json.dumps('Amplify and cognito user pool updated')
-          }
+              'statusCode': 200,
+              'body': json.dumps('Amplify and cognito user pool updated')
+            }
 
   # Step function state machine
   StepFunctionStateMachine:
@@ -401,7 +403,7 @@ Resources:
           "States": {
             "Wait for Completion": {
               "Type": "Wait",
-              "Seconds": 120,
+              "Seconds": 180,
               "Next": "Check Job Status"
             },
             "Check Job Status": {
@@ -415,17 +417,17 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Variable": "$.status",
+                  "Variable": "$.status.status",
                   "StringEquals": "SUCCEED",
                   "Next": "Create Cognito Users"
                 },
                 {
-                  "Variable": "$.status",
+                  "Variable": "$.status.status",
                   "StringEquals": "FAILED",
                   "Next": "Fail State"
                 },
                 {
-                  "Variable": "$.status",
+                  "Variable": "$.status.status",
                   "StringEquals": "CANCELLED",
                   "Next": "Fail State"
                 }
@@ -444,7 +446,7 @@ Resources:
             }
           }
         }
-        
+  
 
   # ✅ Permissions for SNS to invoke Lambda
   LambdaInvokePermission:
@@ -486,6 +488,11 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}"
                   - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/*"
+              - Effect: "Allow"
+                Action:
+                  - "states:StartExecution"
+                Resource:
+                  - !GetAtt StepFunctionStateMachine.Arn
               - Effect: Allow
                 Action:
                   - "logs:CreateLogGroup"
@@ -525,11 +532,6 @@ Resources:
                   - "sns:Subscribe"
                 Resource:
                   - !Ref BackupRegionNotificationTopicArn
-              - Effect: "Allow"
-                Action:
-                  - "states:StartExecution"
-                Resource:
-                  - !GetAtt StepFunctionStateMachine.Arn
               - Effect: Allow
                 Action:
                   - "logs:CreateLogGroup"
@@ -557,7 +559,7 @@ Resources:
                   - "amplify:GetJob"
                 Resource:
                   - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}"
-                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/*"
+                  - !Sub "arn:aws:amplify:${BackupRegion}:${AWS::AccountId}:apps/${AmplifyAppId}/branches/${AmplifyBranchName}/jobs/*"
               - Effect: Allow
                 Action:
                   - "logs:CreateLogGroup"

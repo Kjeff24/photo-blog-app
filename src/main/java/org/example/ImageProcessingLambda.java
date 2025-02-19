@@ -28,7 +28,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -138,7 +140,9 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
     }
 
     public InputStream processImageWithWatermark(InputStream inputStream, String name, String imageFormat) throws IOException {
-        String fullName = name.toUpperCase();
+        String currentDate = new SimpleDateFormat("dd MMM yyyy HH:mm:ss").format(new Date());
+        String watermarkText = name.toUpperCase() + " - " + currentDate;
+
         BufferedImage originalImage = ImageIO.read(inputStream);
 
         Graphics2D graphics = (Graphics2D) originalImage.getGraphics();
@@ -149,7 +153,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
         graphics.setFont(font);
 
         FontMetrics fontMetrics = graphics.getFontMetrics();
-        int textWidth = fontMetrics.stringWidth(fullName);
+        int textWidth = fontMetrics.stringWidth(watermarkText);
         int textHeight = fontMetrics.getHeight();
 
         int x = originalImage.getWidth() - textWidth - 10;
@@ -157,7 +161,7 @@ public class ImageProcessingLambda implements RequestHandler<Map<String, Object>
 
         Color fontColor = new Color(255, 255, 255, 128);
         graphics.setColor(fontColor);
-        graphics.drawString(fullName, x, y);
+        graphics.drawString(watermarkText, x, y);
         graphics.dispose();
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();

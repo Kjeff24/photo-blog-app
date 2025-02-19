@@ -1,9 +1,71 @@
-# photo-blog-app serverless API
-The photo-blog-app project, created with [`aws-serverless-java-container`](https://github.com/aws/serverless-java-container).
+# Photo Blog App Serverless API
+The Photo Blog App is a web application that allows users to create an account, log in, and manage their photos. Users can upload, view, delete, and share their images with others. The app ensures that all uploaded images are processed to include a watermark with the user's full name and the date of upload. The processed images are stored securely, and users can generate time-bound shareable links for non-account holders. The app also includes features like a recycling bin for deleted images and a disaster recovery mechanism to ensure high availability and data integrity.
+[Frontend Application](https://github.com/Kjeff24/photo-blog-app-frontend.git)
 
-The starter project defines a simple `/ping` resource that can accept `GET` requests with its tests.
+## Technical Requirements
+### Core Features
+- User Authentication:
+  - User sign-up and sign-in using Amazon Cognito.
+  - Users are alerted via email immediately after logging in.
+    Image Upload and Processing:
+- Images are first staged in an S3 staging bucket.
+  - Images are processed to include a watermark (user's full name and upload date) and stored in a primary S3 bucket.
+  - The URL of the processed image is stored in a DynamoDB table with user-identifiable attributes.
+  - Limit the size of images uploaded by users to below API Gateway limits.
+  - Original unprocessed images are deleted from the staging bucket after successful processing.
+- Image Processing Retry Mechanism:
+  - If image processing fails, retry after 5 minutes.
+  - Notify the user via email if processing fails.
+  - Allow up to 2 additional retries in case of failure.
+- Image Access Control:
+  - Processed images are only accessible to authenticated users unless a user generates a time-bound shareable link.
+  - Shareable links expire after 3 hours.
+- Recycling Bin:  
+  - Deleted images are moved to a recycling bin and can be restored or permanently deleted.
+  - Images in the recycling bin are viewable but not shareable.
+  - If an image is deleted after being shared, it becomes inaccessible via the shared link.
+- Decoupling with Message Queuing:
+  - Use Amazon SQS to decouple processes and prevent tight coupling.
 
-The project folder also includes a `template.yml` file. You can use this [SAM](https://github.com/awslabs/serverless-application-model) file to deploy the project to AWS Lambda and Amazon API Gateway or test in local with the [SAM CLI](https://github.com/awslabs/aws-sam-cli). 
+## Functional Requirements
+- User Account Management:
+  - Users can sign up and create their own blog space.
+  - Users can log in to upload, modify, view, or delete images.
+- Image Management:
+  - Only watermarked images are displayed to users.
+  - Users can generate time-bound shareable links for non-account holders.
+- Recycling Bin:
+  - Deleted images are moved to a recycling bin and can be restored or permanently deleted.
+  - Images in the recycling bin are viewable but not shareable.
+- Notifications:
+  - Users are notified via email immediately after logging in.
+  - Users are notified if image processing fails.
+
+## Disaster Recovery Requirements
+- RPO/RTO of 10 Minutes:
+  - Implement a warm standby disaster recovery solution.
+- Automated Deployment:
+ - Use AWS SAM to deploy all backend resources (API Gateway, Lambda, Queues, DynamoDB, etc.) in both primary and secondary (disaster recovery) regions. 
+ - Ensure all resources in the disaster recovery region are idle but ready for failover.
+- Data Replication:
+  - Continuously back up processed images from the primary S3 bucket to a secondary bucket in the disaster recovery region.
+  - Replicate DynamoDB tables in the disaster recovery region using native DynamoDB features.
+- API Failover Mechanism:
+  - Use AWS Route 53, CloudWatch Alarms, and Lambda to switch incoming traffic from the primary API Gateway to a secondary API Gateway in case of disaster.
+  - Notify the system administrator when a failover occurs.
+  - Ensure the frontend does not lose contact with the backend API Gateway for more than 10 minutes.
+
+## Services Used
+- Amazon Cognito: User authentication and management.
+- Amazon S3: Staging and storage of images.
+- Amazon DynamoDB: Storing metadata of processed images.
+- API Gateway: Handling API requests.
+- Amazon SQS: Decoupling processes.
+- Amazon SNS: Sending notifications (e.g., email alerts).
+- AWS Lambda: Serverless functions for image processing, failover, and other tasks.
+- AWS Route 53: DNS and traffic routing for failover.
+- AWS CloudWatch: Monitoring and alarms.
+- AWS SAM: Automated deployment of resources.
 
 ## Pre-requisites
 * [AWS CLI](https://aws.amazon.com/cli/)
@@ -17,7 +79,7 @@ The project folder also includes a `template.yml` file. You can use this [SAM](h
   - DOMAIN_NAME: The domain name for the ACM certificate (e.g., *.photoblog.com)
   - HOSTED_ZONE_ID: The Route 53 Hosted Zone (e.g. photoblog.com)
   - REGION: Deploy to both primary and backup region (e.g. primary region: eu-central-1, backup region: eu-west-1)
-NB: The template also creates a route 53 record
+    NB: The template also creates a route 53 record
 ```
 aws cloudformation deploy \
 --template-file acm-certificate.yml \
@@ -41,7 +103,7 @@ aws acm list-certificates --region <region>
   - PrimaryRegion: Primary region name
   - BackupRegion: Backup region name
 - NB:
-  - Deploy to back-up region before the primary region, this is because back-up bucket must exist before replication of primary bucket. 
+  - Deploy to back-up region before the primary region, this is because back-up bucket must exist before replication of primary bucket.
   - If any error such as "A conflicting conditional operation is currently in progress against this resource." ensure your bucket names are unique
 ```bash
 aws cloudformation deploy \
@@ -95,7 +157,7 @@ $ sam deploy --guided
 ```
 7. Deploy primary record for route 53 failover.
 - Use this command to get domain names and its properties.
-NB: Get configuration for both primary and back region. Replace <region> with the appropriate region
+  NB: Get configuration for both primary and back region. Replace <region> with the appropriate region
 ```
 aws apigateway get-domain-names --region <region>
 ```
@@ -114,7 +176,7 @@ aws apigateway get-domain-names --region <region>
   - AMPLIFY_BRANCH_NAME: Branch name for hosted frontend
 - NB:
   - Metrics generated by Route 53 health checks are stored in Amazon CloudWatch in us-east-1 by default.
-  - This is a design constraint of AWS.  
+  - This is a design constraint of AWS.
   - CloudWatch alarms that monitor Route 53 health checks must be created in us-east-1 because the underlying health check metrics are only available in that region.
 ```bash
 aws cloudformation deploy \

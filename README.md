@@ -77,7 +77,7 @@ The Photo Blog App is a web application that allows users to create an account, 
 2. Create AWS ACM certificate for primary and backup region.
 - Parameters include:
   - DOMAIN_NAME: The domain name for the ACM certificate (e.g., *.photoblog.com)
-  - HOSTED_ZONE_ID: The Route 53 Hosted Zone (e.g. photoblog.com)
+  - HOSTED_ZONE_ID: The Route 53 Hosted Zone (e.g. Z03224)
   - REGION: Deploy to both primary and backup region (e.g. primary region: eu-central-1, backup region: eu-west-1)
     NB: The template also creates a route 53 record
 ```

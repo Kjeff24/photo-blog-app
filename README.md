@@ -2,6 +2,9 @@
 The Photo Blog App is a web application that allows users to create an account, log in, and manage their photos. Users can upload, view, delete, and share their images with others. The app ensures that all uploaded images are processed to include a watermark with the user's full name and the date of upload. The processed images are stored securely, and users can generate time-bound shareable links for non-account holders. The app also includes features like a recycling bin for deleted images and a disaster recovery mechanism to ensure high availability and data integrity.
 [Frontend Application](https://github.com/Kjeff24/photo-blog-app-frontend.git)
 
+## Architecture Diagram
+<img width="1836" height="1377" alt="photo-blog-architecture-diagram" src="https://github.com/user-attachments/assets/08988c44-0cbe-4111-98d1-bf096ec78552" />
+
 ## Technical Requirements
 ### Core Features
 - User Authentication:
@@ -225,3 +228,4 @@ aws cloudformation deploy \
   BackupRegionalDomainName=${BACKUP_REGIONAL_DOMAIN_NAME} \
 --region us-east-1
 ```
+
